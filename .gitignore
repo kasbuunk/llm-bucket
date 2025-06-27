@@ -1,1 +1,2 @@
-/target
+# Ignore output directory to prevent committing generated data
+/output/

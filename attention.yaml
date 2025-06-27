@@ -1,0 +1,10 @@
+# attention.yaml — TDD progress register
+stage: Red                     # current phase: Red | Green | Refactor
+last_test: ""                  # name or description of last test
+test_status: ""                # failed | passed
+green_code_snippet: ""         # minimal code used to pass test
+refactor_notes: ""             # notes or actions taken during refactor
+next_test: ""                  # description of next test to write
+history:                       # chronological log of actions
+  - timestamp: 2025-27-06T16:22:00Z # REPLACE WITH CURRENT DATETIME
+    action: "initialized attention.yaml"

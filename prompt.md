@@ -56,6 +56,7 @@ For project-specific goals or mission statements, consult the README.
 - Declarative Intent: model *what* over *how*
 - Resilience via Replay: recovery & auditing by replaying events
 - Composable Services: small, focused units collaborating by messages
+- Comments: why, not what, ending with a period
 
 ---
 
