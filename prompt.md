@@ -78,6 +78,13 @@ For project-specific goals or mission statements, consult the README.
 
 ## 4. Sacred TDD Cycle (Follow Religiously)
 
+> **Always adhere strictly to the Sacred TDD Cycle.**  
+> Do not proceed with implementation until you have written a failing test that conditions the new feature or change.  
+> Before starting coding, run the test suite to confirm the new test fails (Red).  
+> Only then, implement the minimum code to make the test pass (Green).  
+> Finally, refactor the code for clarity and quality, ensuring all tests still pass.  
+> Repeat this cycle for every feature, bug fix, or refactor.
+
 1. **Red**
    - Collaboratively write a **single failing test** for the next small increment.
    - Confirm it fails for the right reason.
