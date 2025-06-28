@@ -1,0 +1,47 @@
+use std::fs;
+use std::path::Path;
+use std::process::Command;
+
+pub fn run(config: &crate::config::Config) -> Result<(), ()> {
+    // Only supports Git sources for now.
+    for source in &config.sources {
+        if let crate::config::SourceAction::Git(git_source) = source {
+            let repo_url = &git_source.repo_url;
+            let reference = git_source.reference.as_deref().unwrap_or("main");
+            let out_dir = &config.output_dir;
+
+            // If output exists, remove it, to allow clean cloning.
+            if Path::new(out_dir).exists() {
+                if let Err(e) = fs::remove_dir_all(out_dir) {
+                    eprintln!("Error removing output dir: {e}");
+                    return Err(());
+                }
+            }
+
+            // `git clone --depth 1 --branch <reference> <repo_url> <out_dir>`
+            let status = Command::new("git")
+                .arg("clone")
+                .arg("--depth").arg("1")
+                .arg("--branch").arg(reference)
+                .arg(repo_url)
+                .arg(out_dir)
+                .status();
+
+            match status {
+                Ok(s) if s.success() => continue,
+                Ok(s) => {
+                    eprintln!("git exited with code {}", s);
+                    return Err(());
+                }
+                Err(e) => {
+                    eprintln!("Failed to launch git: {e}");
+                    return Err(());
+                }
+            }
+        } else {
+            eprintln!("Source type not supported yet by download::run");
+            return Err(());
+        }
+    }
+    Ok(())
+}

@@ -18,7 +18,7 @@ pub enum SourceAction {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GitSource {
     pub repo_url: String,
-    pub branch: String,
+    pub reference: Option<String>, // branch, tag, or commit
     // Authentication options can be added later
     // e.g., token, SSH key, etc.
 }
