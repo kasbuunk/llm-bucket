@@ -8,7 +8,7 @@ use std::path::Path;
 struct TestCase {
     name: &'static str,
     config: Config,
-    expected_subdir: String,
+    expected_dirs: Vec<String>,
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn test_download_populates_directory_table_driven() {
                     reference: Some(reference.into()),
                 })],
             },
-            expected_subdir: expected_subdir_llm.clone(),
+            expected_dirs: vec![expected_subdir_llm.clone()],
         },
         TestCase {
             name: "single public git repo: ai",
@@ -63,7 +63,7 @@ fn test_download_populates_directory_table_driven() {
                     reference: Some(ai_reference.into()),
                 })],
             },
-            expected_subdir: expected_subdir_ai.clone(),
+            expected_dirs: vec![expected_subdir_ai.clone()],
         },
         TestCase {
             name: "private git repo via SSH",
@@ -74,7 +74,24 @@ fn test_download_populates_directory_table_driven() {
                     reference: Some(private_reference.into()),
                 })],
             },
-            expected_subdir: expected_subdir_private.clone(),
+            expected_dirs: vec![expected_subdir_private.clone()],
+        },
+        TestCase {
+            name: "two sources: llm-bucket and ai",
+            config: Config {
+                output_dir: output_dir.into(),
+                sources: vec![
+                    SourceAction::Git(GitSource {
+                        repo_url: repo_url.into(),
+                        reference: Some(reference.into()),
+                    }),
+                    SourceAction::Git(GitSource {
+                        repo_url: ai_repo_url.into(),
+                        reference: Some(ai_reference.into()),
+                    }),
+                ],
+            },
+            expected_dirs: vec![expected_subdir_llm.clone(), expected_subdir_ai.clone()],
         }
     ];
 
@@ -85,21 +102,24 @@ fn test_download_populates_directory_table_driven() {
         let result = llm_bucket::download::run(&tc.config);
         assert!(result.is_ok(), "{}: download::run() should succeed", tc.name);
 
-        let full_source_path = Path::new(output_dir).join(&tc.expected_subdir);
-        assert!(
-            full_source_path.exists() && full_source_path.is_dir(),
-            "{}: Source subdirectory ('{}') should exist and be a directory",
-            tc.name,
-            full_source_path.display()
-        );
-        let entries = fs::read_dir(&full_source_path).unwrap();
-        let has_entries = entries.take(1).count() > 0;
-        assert!(
-            has_entries,
-            "{}: Source subdirectory ('{}') should contain content after download",
-            tc.name,
-            full_source_path.display()
-        );
+        // Assert all expected directories exist and are not empty
+        for expected_dir in &tc.expected_dirs {
+            let full_source_path = Path::new(output_dir).join(&expected_dir);
+            assert!(
+                full_source_path.exists() && full_source_path.is_dir(),
+                "{}: Source subdirectory ('{}') should exist and be a directory",
+                tc.name,
+                full_source_path.display()
+            );
+            let entries = fs::read_dir(&full_source_path).unwrap();
+            let has_entries = entries.take(1).count() > 0;
+            assert!(
+                has_entries,
+                "{}: Source subdirectory ('{}') should contain content after download",
+                tc.name,
+                full_source_path.display()
+            );
+        }
     }
 }
 
