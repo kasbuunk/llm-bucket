@@ -6,48 +6,57 @@ use std::fs;
 use std::path::Path;
 
 #[test]
-fn test_download_populates_directory() {
-    // Always use the same output dir for the test
-    let output_path = Path::new("test_output");
+fn test_download_populates_directory_table_driven() {
+    struct TestCase {
+        name: &'static str,
+        config: Config,
+        expected_subdir: String,
+    }
 
-    // Test values for this source
     let repo_url = "https://github.com/kasbuunk/llm-bucket";
     let reference = "main";
-
-    // Deterministic source subdir: git_github.com/kasbuunk/llm-bucket_main
-    let source_dir_name = format!(
+    let output_dir = "test_output";
+    let expected_subdir = format!(
         "git_{}_{}",
         repo_url.trim_start_matches("https://").trim_start_matches("http://"),
         reference
     ).replace('/', "_");
-    let full_source_path = output_path.join(&source_dir_name);
 
-    // Construct a Config with one Git source (with Option<String> reference field)
-    let config = Config {
-        output_dir: output_path.into(),
-        sources: vec![SourceAction::Git(GitSource {
-            repo_url: repo_url.into(),
-            reference: Some(reference.into()), // branch, tag, or commit
-                                               // Add other GitSource fields here if they exist
-        })],
-    };
+    let test_cases = vec![
+        TestCase {
+            name: "single public git repo",
+            config: Config {
+                output_dir: output_dir.into(),
+                sources: vec![SourceAction::Git(GitSource {
+                    repo_url: repo_url.into(),
+                    reference: Some(reference.into()),
+                })],
+            },
+            expected_subdir: expected_subdir.clone(),
+        }
+    ];
 
-    // This call should fail to compile until the download module & function exist
-    let result = llm_bucket::download::run(&config);
-    assert!(result.is_ok(), "download::run() should succeed");
+    for tc in test_cases {
+        // Run download
+        let result = llm_bucket::download::run(&tc.config);
+        assert!(result.is_ok(), "{}: download::run() should succeed", tc.name);
 
-    // Check that the deterministic source directory exists within the output dir and isn't empty
-    assert!(
-        full_source_path.exists() && full_source_path.is_dir(),
-        "Source subdirectory ('{}') should exist and be a directory",
-        full_source_path.display()
-    );
+        // Check for deterministic subdir
+        let full_source_path = Path::new(output_dir).join(&tc.expected_subdir);
+        assert!(
+            full_source_path.exists() && full_source_path.is_dir(),
+            "{}: Source subdirectory ('{}') should exist and be a directory",
+            tc.name,
+            full_source_path.display()
+        );
 
-    let entries = fs::read_dir(&full_source_path).unwrap();
-    let has_entries = entries.take(1).count() > 0;
-    assert!(
-        has_entries,
-        "Source subdirectory ('{}') should contain content after download",
-        full_source_path.display()
-    );
+        let entries = fs::read_dir(&full_source_path).unwrap();
+        let has_entries = entries.take(1).count() > 0;
+        assert!(
+            has_entries,
+            "{}: Source subdirectory ('{}') should contain content after download",
+            tc.name,
+            full_source_path.display()
+        );
+    }
 }
