@@ -92,6 +92,34 @@ fn test_download_populates_directory_table_driven() {
                 ],
             },
             expected_dirs: vec![expected_subdir_llm.clone(), expected_subdir_ai.clone()],
+        },
+        TestCase {
+            name: "two refs in llm-bucket repo",
+            config: Config {
+                output_dir: output_dir.into(),
+                sources: vec![
+                    SourceAction::Git(GitSource {
+                        repo_url: repo_url.into(),
+                        reference: Some(reference.into()),
+                    }),
+                    SourceAction::Git(GitSource {
+                        repo_url: repo_url.into(),
+                        reference: Some("879e21e".into()),
+                    }),
+                ],
+            },
+            expected_dirs: vec![
+                format!(
+                    "git_{}_{}",
+                    repo_url,
+                    reference
+                ).replace('/', "_").replace(':', "_"),
+                format!(
+                    "git_{}_{}",
+                    repo_url,
+                    "879e21e"
+                ).replace('/', "_").replace(':', "_"),
+            ],
         }
     ];
 
