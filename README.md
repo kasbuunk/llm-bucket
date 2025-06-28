@@ -27,6 +27,21 @@ A command-line utility for aggregating knowledge snapshots—including git repos
 
 ---
 
+## Configuration for API Upload (Confidential)
+
+To configure confidential API connection parameters (such as server URL and API token for uploading data):
+
+1. Copy the example environment file:
+   ```sh
+   cp .env.example .env
+   ```
+2. Edit `.env` and provide your own values for:
+   - `API_URL`
+   - `OCP_APIM_SUBSCRIPTION_KEY`
+3. **Never commit your `.env` file.** The real `.env` is gitignored for safety.
+
+The uploader/client and tests will load these parameters using [dotenv](https://crates.io/crates/dotenv) at runtime.
+
 ## Installation
 
 ### Prerequisites

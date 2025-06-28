@@ -1,12 +1,10 @@
-bucket-sync/src/upload/mod.rs
-```
-```rust
+use async_trait::async_trait;
+
 /// Abstraction for uploading sources (repositories) and items (files) to the ChatNS API backend.
 /// Designed for asynchronous usage and easy mocking.
 ///
 /// The implementation will handle the server URL and Ocp-Apim-Subscription-Key.
 /// The trait itself is agnostic of authentication and transport details.
-use async_trait::async_trait;
 
 /// Represents the bare minimum data needed to create an external source.
 pub struct NewExternalSource<'a> {
