@@ -37,23 +37,39 @@ pub fn run(config: &crate::config::Config) -> Result<(), ()> {
                 }
             }
 
-            // `git clone --depth 1 --branch <reference> <repo_url> <full_source_path>`
+            // `git clone <repo_url> <full_source_path>`
             let status = Command::new("git")
                 .arg("clone")
-                .arg("--depth").arg("1")
-                .arg("--branch").arg(reference)
                 .arg(repo_url)
                 .arg(&full_source_path)
                 .status();
 
-            match status {
-                Ok(s) if s.success() => continue,
-                Ok(s) => {
+            if let Ok(s) = status {
+                if !s.success() {
                     eprintln!("git exited with code {}", s);
                     return Err(());
                 }
+            } else if let Err(e) = status {
+                eprintln!("Failed to launch git: {e}");
+                return Err(());
+            }
+
+            // After cloning, checkout the correct reference (branch, tag, or commit SHA)
+            let checkout_status = Command::new("git")
+                .arg("-C")
+                .arg(&full_source_path)
+                .arg("checkout")
+                .arg(reference)
+                .status();
+
+            match checkout_status {
+                Ok(s) if s.success() => continue,
+                Ok(s) => {
+                    eprintln!("git checkout exited with code {}", s);
+                    return Err(());
+                }
                 Err(e) => {
-                    eprintln!("Failed to launch git: {e}");
+                    eprintln!("Failed to launch git checkout: {e}");
                     return Err(());
                 }
             }
