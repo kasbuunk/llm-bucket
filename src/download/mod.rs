@@ -10,15 +10,15 @@ pub fn run(config: &crate::config::Config) -> Result<(), ()> {
             let reference = git_source.reference.as_deref().unwrap_or("main");
             let out_dir = &config.output_dir;
 
-            // Build deterministic subdirectory for this git source
-            let mut source_dir_name = format!(
+            // Build deterministic subdirectory for this git source:
+            // use the full repo_url (including https:// or git@), replace / and : with _
+            let source_dir_name = format!(
                 "git_{}_{}",
-                repo_url
-                    .trim_start_matches("https://")
-                    .trim_start_matches("http://"),
+                repo_url,
                 reference
             )
-            .replace('/', "_");
+            .replace('/', "_")
+            .replace(':', "_");
             let full_source_path = Path::new(&out_dir).join(&source_dir_name);
 
             // If full_source_path exists, remove it for a clean clone

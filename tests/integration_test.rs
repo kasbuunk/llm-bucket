@@ -19,18 +19,28 @@ fn test_download_populates_directory_table_driven() {
     let output_dir = "test_output";
     let expected_subdir_llm = format!(
         "git_{}_{}",
-        repo_url.trim_start_matches("https://").trim_start_matches("http://"),
+        repo_url,
         reference
-    ).replace('/', "_");
+    ).replace('/', "_").replace(':', "_");
 
     // Test values for 'ai'
     let ai_repo_url = "https://github.com/kasbuunk/ai";
     let ai_reference = "main";
     let expected_subdir_ai = format!(
         "git_{}_{}",
-        ai_repo_url.trim_start_matches("https://").trim_start_matches("http://"),
+        ai_repo_url,
         ai_reference
-    ).replace('/', "_");
+    ).replace('/', "_").replace(':', "_");
+
+    // Test values for private repo via SSH
+    let private_ssh_url = "git@github.com:kasbuunk/private-repo-test.git";
+    let private_reference = "main";
+    // note: intentionally use same normalization logic for outputs as for https
+    // this means the test expects directory based on path after host and branch
+    let expected_subdir_private = format!(
+        "git_{}_{}",
+        private_ssh_url, private_reference
+    ).replace('/', "_").replace(':', "_");
 
     let test_cases = vec![
         TestCase {
@@ -54,6 +64,17 @@ fn test_download_populates_directory_table_driven() {
                 })],
             },
             expected_subdir: expected_subdir_ai.clone(),
+        },
+        TestCase {
+            name: "private git repo via SSH",
+            config: Config {
+                output_dir: output_dir.into(),
+                sources: vec![SourceAction::Git(GitSource {
+                    repo_url: private_ssh_url.into(),
+                    reference: Some(private_reference.into()),
+                })],
+            },
+            expected_subdir: expected_subdir_private.clone(),
         }
     ];
 
