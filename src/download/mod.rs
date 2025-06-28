@@ -10,21 +10,40 @@ pub fn run(config: &crate::config::Config) -> Result<(), ()> {
             let reference = git_source.reference.as_deref().unwrap_or("main");
             let out_dir = &config.output_dir;
 
-            // If output exists, remove it, to allow clean cloning.
-            if Path::new(out_dir).exists() {
-                if let Err(e) = fs::remove_dir_all(out_dir) {
-                    eprintln!("Error removing output dir: {e}");
+            // Build deterministic subdirectory for this git source
+            let mut source_dir_name = format!(
+                "git_{}_{}",
+                repo_url
+                    .trim_start_matches("https://")
+                    .trim_start_matches("http://"),
+                reference
+            )
+            .replace('/', "_");
+            let full_source_path = Path::new(&out_dir).join(&source_dir_name);
+
+            // If full_source_path exists, remove it for a clean clone
+            if full_source_path.exists() {
+                if let Err(e) = fs::remove_dir_all(&full_source_path) {
+                    eprintln!("Error removing source subdir: {e}");
                     return Err(());
+                }
+            } else {
+                // Ensure output dir exists for placing subdirectories
+                if !Path::new(out_dir).exists() {
+                    if let Err(e) = fs::create_dir_all(out_dir) {
+                        eprintln!("Error creating output dir: {e}");
+                        return Err(());
+                    }
                 }
             }
 
-            // `git clone --depth 1 --branch <reference> <repo_url> <out_dir>`
+            // `git clone --depth 1 --branch <reference> <repo_url> <full_source_path>`
             let status = Command::new("git")
                 .arg("clone")
                 .arg("--depth").arg("1")
                 .arg("--branch").arg(reference)
                 .arg(repo_url)
-                .arg(out_dir)
+                .arg(&full_source_path)
                 .status();
 
             match status {

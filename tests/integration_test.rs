@@ -10,13 +10,25 @@ fn test_download_populates_directory() {
     // Always use the same output dir for the test
     let output_path = Path::new("test_output");
 
+    // Test values for this source
+    let repo_url = "https://github.com/kasbuunk/llm-bucket";
+    let reference = "main";
+
+    // Deterministic source subdir: git_github.com/kasbuunk/llm-bucket_main
+    let source_dir_name = format!(
+        "git_{}_{}",
+        repo_url.trim_start_matches("https://").trim_start_matches("http://"),
+        reference
+    ).replace('/', "_");
+    let full_source_path = output_path.join(&source_dir_name);
+
     // Construct a Config with one Git source (with Option<String> reference field)
     let config = Config {
         output_dir: output_path.into(),
         sources: vec![SourceAction::Git(GitSource {
-            repo_url: "https://github.com/kasbuunk/llm-bucket".into(),
-            reference: Some("main".into()), // branch, tag, or commit
-                                            // Add other GitSource fields here if they exist
+            repo_url: repo_url.into(),
+            reference: Some(reference.into()), // branch, tag, or commit
+                                               // Add other GitSource fields here if they exist
         })],
     };
 
@@ -24,16 +36,18 @@ fn test_download_populates_directory() {
     let result = llm_bucket::download::run(&config);
     assert!(result.is_ok(), "download::run() should succeed");
 
-    // Check that the output directory exists & isn't empty
+    // Check that the deterministic source directory exists within the output dir and isn't empty
     assert!(
-        output_path.exists() && output_path.is_dir(),
-        "Output directory should exist"
+        full_source_path.exists() && full_source_path.is_dir(),
+        "Source subdirectory ('{}') should exist and be a directory",
+        full_source_path.display()
     );
 
-    let entries = fs::read_dir(output_path).unwrap();
+    let entries = fs::read_dir(&full_source_path).unwrap();
     let has_entries = entries.take(1).count() > 0;
     assert!(
         has_entries,
-        "Output directory should contain content after download"
+        "Source subdirectory ('{}') should contain content after download",
+        full_source_path.display()
     );
 }
