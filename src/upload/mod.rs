@@ -11,15 +11,15 @@ pub struct NewExternalSource<'a> {
     /// Human-readable name for the external source (e.g., the repository name).
     pub name: &'a str,
     /// The bucket this source belongs to.
-    pub bucket_id: i64,
+    pub bucket_id: i32,
 }
 
 /// Represents the returned external source after creation.
 pub struct ExternalSource {
-    pub bucket_id: i64,
-    pub external_source_id: i64,
+    pub bucket_id: i32,
+    pub external_source_id: i32,
     pub external_source_name: String,
-    pub updated_by: i64,
+    pub updated_by: i32,
     pub updated_datetime: Option<String>,
 }
 
@@ -64,4 +64,76 @@ pub trait Uploader: Send + Sync {
         &self,
         req: NewExternalItem<'_>,
     ) -> Result<ExternalItem, Box<dyn std::error::Error + Send + Sync>>;
+}
+
+use std::env;
+
+// Use generated openapi-client crate
+use openapi::apis::configuration::{ApiKey, Configuration};
+use openapi::apis::external_api::{
+    create_external_source_v1_buckets_bucket_id_external_sources_post,
+    CreateExternalSourceV1BucketsBucketIdExternalSourcesPostError,
+};
+use openapi::models::CreateExternalSource;
+
+pub struct UploaderImpl {
+    conf: Configuration,
+    bucket_id: i64,
+}
+
+impl UploaderImpl {
+    pub fn new_from_env() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        dotenvy::dotenv().ok(); // loads environment variables from .env if present
+        let api_key = env::var("OCP_APIM_SUBSCRIPTION_KEY")?;
+        let bucket_id = env::var("BUCKET_ID")?.parse::<i64>()?;
+        let mut conf = Configuration::default();
+        conf.api_key = Some(ApiKey {
+            prefix: None,
+            key: api_key,
+        });
+        Ok(UploaderImpl {
+            conf,
+            bucket_id,
+        })
+    }
+}
+
+#[async_trait]
+impl Uploader for UploaderImpl {
+    async fn create_source(
+        &self,
+        req: NewExternalSource<'_>,
+    ) -> Result<ExternalSource, Box<dyn std::error::Error + Send + Sync>> {
+        // Use the generated client and model type
+        let body = CreateExternalSource {
+            external_source_name: req.name.to_string(),
+        };
+
+
+        let result = create_external_source_v1_buckets_bucket_id_external_sources_post(
+            &self.conf,
+            req.bucket_id,
+            None, // Let configuration supply API key, don't pass a redundant option
+            Some(body),
+        )
+        .await;
+
+        match result {
+            Ok(api_src) => Ok(ExternalSource {
+                bucket_id: api_src.bucket_id,
+                external_source_id: api_src.external_source_id,
+                external_source_name: api_src.external_source_name,
+                updated_by: api_src.updated_by,
+                updated_datetime: api_src.updated_datetime,
+            }),
+            Err(e) => Err(format!("API error: {e:?}").into()),
+        }
+    }
+
+    async fn create_item(
+        &self,
+        _req: NewExternalItem<'_>,
+    ) -> Result<ExternalItem, Box<dyn std::error::Error + Send + Sync>> {
+        unimplemented!()
+    }
 }
