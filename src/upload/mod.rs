@@ -132,8 +132,46 @@ impl Uploader for UploaderImpl {
 
     async fn create_item(
         &self,
-        _req: NewExternalItem<'_>,
+        req: NewExternalItem<'_>,
     ) -> Result<ExternalItem, Box<dyn std::error::Error + Send + Sync>> {
-        unimplemented!()
+        use sha2::{Digest, Sha256};
+        use openapi::models::{CreateExternalItem as ApiNewItem, ProcessingState};
+
+        // Compute a SHA256 content hash
+        let content_hash = {
+            let mut hasher = Sha256::new();
+            hasher.update(req.content.as_bytes());
+            format!("{:x}", hasher.finalize())
+        };
+
+        // Parse processing_state (accepts Option<str> or just None)
+        let api_processing_state = req.processing_state
+            .and_then(|s| serde_json::from_str::<ProcessingState>(&format!("\"{s}\"")).ok());
+
+        // Build the API item payload
+        let api_req = ApiNewItem {
+            content: req.content.to_string(),
+            content_hash: content_hash.clone(),
+            url: req.url.to_string(),
+            processing_state: api_processing_state,
+        };
+
+        let api_result = openapi::apis::external_api::create_external_item_v1_buckets_bucket_id_external_sources_external_sourc(
+            &self.conf,
+            req.bucket_id as i32,
+            req.external_source_id as i32,
+            None,
+            Some(api_req),
+        ).await?;
+
+        Ok(ExternalItem {
+            content_hash: api_result.content_hash,
+            external_item_id: api_result.external_item_id as i64,
+            external_source_id: api_result.external_source_id as i64,
+            processing_state: format!("{:?}", api_result.processing_state),
+            state: format!("{:?}", api_result.state),
+            updated_datetime: api_result.updated_datetime,
+            url: api_result.url,
+        })
     }
 }
