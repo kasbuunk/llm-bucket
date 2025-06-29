@@ -5,5 +5,5 @@
 .env
 
 # Ignore confidential OpenAPI schema and generated client
-/src/openapi-client/schema-openapi.yaml
-/src/openapi-client/
+/openapi-client/schema-openapi.yaml
+/openapi-client/

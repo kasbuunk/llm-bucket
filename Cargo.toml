@@ -1,3 +1,6 @@
+[workspace]
+members = ["./openapi-client/generated", "."]
+
 [package]
 name = "llm-bucket"
 edition = "2021"
@@ -5,6 +8,10 @@ edition = "2021"
 [dependencies]
 async-trait = "0.1.88"
 serde = { version = "1.0", features = ["derive"] }
+dotenvy = "0.15"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+serde_json = "1.0"
+openapi = { path = "./openapi-client/generated" }
 
 [dev-dependencies]
 tokio = { version = "1.37", features = ["macros", "rt"] }
