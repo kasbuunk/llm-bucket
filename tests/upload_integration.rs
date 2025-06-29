@@ -1,4 +1,5 @@
 use llm_bucket::upload::{NewExternalSource, Uploader};
+use openapi::models::ProcessingState;
 
 #[tokio::test]
 async fn test_create_external_source_succeeds() {
@@ -44,7 +45,10 @@ async fn test_create_external_item_succeeds() {
         name: "Item Test Source",
         bucket_id,
     };
-    let source_result = uploader.create_source(req_source).await.expect("Creating source failed");
+    let source_result = uploader
+        .create_source(req_source)
+        .await
+        .expect("Creating source failed");
     let external_source_id = source_result.external_source_id as i64;
 
     // Build the new external item request
@@ -56,13 +60,14 @@ async fn test_create_external_item_succeeds() {
         processing_state: None,
     };
 
-    let item_result = uploader.create_item(req_item).await;
+    let item_result = uploader
+        .create_item(req_item)
+        .await
+        .expect("Creating item should succeed");
 
     assert!(
-        item_result.is_ok(),
-        "Expected successful result from create_item, but got error: {:?}",
-        item_result.as_ref().err()
+        item_result.processing_state.eq_ignore_ascii_case("submitted"),
+        "Expected processing_state to be case-insensitively 'submitted', got: {}",
+        item_result.processing_state
     );
-
-    // Optional: match returned item fields etc once implemented
 }
