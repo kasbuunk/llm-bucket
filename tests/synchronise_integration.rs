@@ -65,3 +65,49 @@ fn test_synchronise_readme_to_pdf_upload() {
     // Optionally: check the number of uploaded external sources/items, or PDF presence on disk
     // (Requires real credentials and bucket, or a mocked uploader)
 }
+
+#[test]
+fn test_synchronise_flattenfiles_uploads_codebase_files() {
+    let temp_out = tempdir().unwrap();
+    let output_dir = temp_out.path().to_path_buf();
+
+    let download = DownloadConfig {
+        output_dir: output_dir.clone(),
+        sources: vec![
+            SourceAction::Git(
+                GitSource {
+                    repo_url: "git@github.com:kasbuunk/llm-bucket.git".to_string(),
+                    reference: None,
+                }
+            ),
+        ],
+    };
+
+    let process = ProcessConfig {
+        kind: ProcessorKind::FlattenFiles,
+    };
+
+    dotenv::dotenv().ok();
+
+    let api_key = std::env::var("OCP_APIM_SUBSCRIPTION_KEY")
+        .expect("OCP_APIM_SUBSCRIPTION_KEY env var must be set for integration test");
+    let bucket_id = std::env::var("BUCKET_ID")
+        .expect("BUCKET_ID env var must be set for integration test")
+        .parse::<i64>()
+        .expect("BUCKET_ID must be an integer");
+
+    let upload = UploadConfig {
+        bucket_id,
+        api_key: Some(api_key),
+    };
+
+    let config = SynchroniseConfig {
+        download,
+        process,
+        upload,
+    };
+
+    let res = synchronise(&config);
+    assert!(res.is_ok(), "Synchronise with FlattenFiles should succeed in end-to-end integration");
+    // Optionally: Future improvement—check output item count, or that select filenames are present.
+}
