@@ -38,6 +38,7 @@ pub struct NewExternalItem<'a> {
 }
 
 /// Represents the created/returned item.
+#[derive(Debug, serde::Serialize)]
 pub struct ExternalItem {
     pub content_hash: String,
     pub external_item_id: i64,

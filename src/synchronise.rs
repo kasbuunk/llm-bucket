@@ -1,8 +1,11 @@
 //! Coordinating module for download-process-upload pipeline.
 
+use crate::preprocess;
+pub use preprocess::{
+    ProcessConfig, ProcessorKind, ProcessInput, ExternalSourceInput, ExternalItemInput, ProcessError, process
+};
+
 use std::path::PathBuf;
-use crate::code_to_pdf::{code_file_to_pdf, CodeToPdfError};
-use tempfile;
 extern crate tokio; // Use extern crate for runtime context
 use crate::upload::Uploader; // trait for async upload calls
 
@@ -30,18 +33,6 @@ pub struct GitSource {
     pub repo_url: String,
     pub reference: Option<String>,
     // Extendable (token, ssh, etc)
-}
-
-/// Processor configuration - describes how the sources are processed into uploadable items.
-pub struct ProcessConfig {
-    pub kind: ProcessorKind,
-}
-
-#[derive(Debug, Clone)]
-pub enum ProcessorKind {
-    /// For each git source, outputs an external source with a single PDF (README.md converted)
-    ReadmeToPDF,
-    // Future: CodeToPDF, DirectoryToPDF, etc
 }
 
 /// Upload configuration - where/how to upload the processed result.
@@ -94,7 +85,7 @@ pub fn synchronise(config: &SynchroniseConfig) -> Result<(), String> {
         name: name.clone(),
         repo_path: local_path,
     };
-    let source_for_upload = match process(&config.process, process_input) {
+    let source_for_upload = match preprocess::process(&config.process, process_input) {
         Ok(src) => {
             println!("[SYNC] Processing succeeded: {} items", src.external_items.len());
             src
@@ -161,6 +152,11 @@ pub fn synchronise(config: &SynchroniseConfig) -> Result<(), String> {
         let uploaded = match rt.block_on(uploader.create_item(item_req)) {
             Ok(resp) => {
                 println!("[SYNC][UPLOAD] create_item succeeded: file={}, state={:?}", ext_item.filename, resp.processing_state);
+                // Print full struct as JSON for debug
+                match serde_json::to_string_pretty(&resp) {
+                    Ok(json) => println!("[SYNC][UPLOAD][DEBUG] Uploaded ExternalItem as JSON:\n{}", json),
+                    Err(e) => eprintln!("[SYNC][UPLOAD][DEBUG] Failed to serialize ExternalItem as JSON: {:?}", e),
+                }
                 resp
             }
             Err(e) => {
@@ -168,6 +164,8 @@ pub fn synchronise(config: &SynchroniseConfig) -> Result<(), String> {
                 return Err(format!("[UPLOAD fail @ create_item for file={}]: {e:?}", ext_item.filename));
             }
         };
+        // All upload steps completed for item: continue to next item (if any)
+
         if uploaded.processing_state != "Submitted" {
             eprintln!("[SYNC][ERROR][UPLOAD] Uploaded item's processing_state was not 'Submitted' for file={}: {:?}", ext_item.filename, uploaded.processing_state);
             return Err(format!(
@@ -176,82 +174,7 @@ pub fn synchronise(config: &SynchroniseConfig) -> Result<(), String> {
             ));
         }
     }
-    println!("[SYNC] Synchronise pipeline succeeded.");
+    // println!("[SYNC] Synchronise pipeline succeeded.");
+    // Ok(())
     Ok(())
-}
-
-// ---- Begin processing types and API ----
-
-
-/// Input for processing step: a single source location (name, local path, etc)
-pub struct ProcessInput {
-    pub name: String,
-    pub repo_path: PathBuf,
-    // Add fields as needed
-}
-
-/// Output for processing: A source with items to be uploaded
-pub struct ExternalSourceInput {
-    pub name: String,
-    pub external_items: Vec<ExternalItemInput>,
-}
-
-/// An item for upload: filename and content (e.g. PDF data)
-pub struct ExternalItemInput {
-    pub filename: String,
-    pub content: Vec<u8>,
-}
-
-#[derive(Debug)]
-pub enum ProcessError {
-    Io(std::io::Error),
-    NoReadme,
-    Other(String),
-}
-
-impl From<std::io::Error> for ProcessError {
-    fn from(e: std::io::Error) -> Self {
-        ProcessError::Io(e)
-    }
-}
-
-/// Main processor function: for the kind specified in config, process this input and return a single source+items.
-pub fn process(config: &ProcessConfig, input: ProcessInput) -> Result<ExternalSourceInput, ProcessError> {
-    match config.kind {
-        ProcessorKind::ReadmeToPDF => {
-            let readme_path = input.repo_path.join("README.md");
-
-            if !readme_path.exists() {
-                return Err(ProcessError::NoReadme);
-            }
-
-            // Prepare a temp output file path for pdf generation
-            let tmp_pdf = tempfile::NamedTempFile::new()
-                .map_err(|e| ProcessError::Io(e))?;
-            let tmp_pdf_path = tmp_pdf.path();
-
-            // Call the code_to_pdf module (on-disk)
-            code_file_to_pdf(&readme_path, tmp_pdf_path)
-                .map_err(|e| match e {
-                    CodeToPdfError::Io(e) => ProcessError::Io(e),
-                    CodeToPdfError::EmptyInput => ProcessError::Other("PDF: Empty input".into()),
-                    CodeToPdfError::Font(_) => ProcessError::Other("PDF: font error".into()),
-                })?;
-
-            // Read PDF as bytes
-            let content = std::fs::read(tmp_pdf_path).map_err(ProcessError::Io)?;
-
-            // Prepare the result structures
-            let ext_item = ExternalItemInput {
-                filename: "README.pdf".to_string(),
-                content,
-            };
-
-            Ok(ExternalSourceInput {
-                name: input.name,
-                external_items: vec![ext_item],
-            })
-        }
-        // Add more processor kinds as needed
-    }
 }

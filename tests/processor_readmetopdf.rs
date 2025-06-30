@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::Write;
 use tempfile::tempdir;
-use llm_bucket::synchronise::{
+use llm_bucket::preprocess::{
     ProcessConfig, ProcessorKind, ProcessInput, process,
     ExternalSourceInput, ExternalItemInput,
 };

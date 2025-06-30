@@ -4,9 +4,10 @@ use dotenv;
 
 // These are the *intended* configuration roots for the new synchronise pipeline:
 use llm_bucket::synchronise::{
-    SynchroniseConfig, DownloadConfig, UploadConfig, ProcessConfig, ProcessorKind, SourceAction, GitSource,
+    SynchroniseConfig, DownloadConfig, UploadConfig, SourceAction, GitSource,
     synchronise, // pipeline entrypoint
 };
+use llm_bucket::preprocess::{ProcessConfig, ProcessorKind};
 
 #[test]
 fn test_synchronise_readme_to_pdf_upload() {
