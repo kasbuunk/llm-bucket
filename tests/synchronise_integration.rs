@@ -3,6 +3,7 @@ use tempfile::tempdir;
 use dotenv;
 use uuid::Uuid;
 use llm_bucket::upload::{LLMClient, NewExternalSource, Uploader};
+use serial_test::serial;
 
 // Import the synchronise reporting structs directly
 use llm_bucket::synchronise::{
@@ -17,6 +18,7 @@ use llm_bucket::synchronise::{
 use llm_bucket::preprocess::{ProcessConfig, ProcessorKind};
 
 #[tokio::test]
+#[serial]
 async fn test_synchronise_readme_to_pdf_upload() {
     let temp_out = tempdir().unwrap();
     let output_dir = temp_out.path().to_path_buf();
@@ -116,6 +118,7 @@ async fn test_empty_bucket_removes_all_sources() {
 // Types now imported from llm_bucket::synchronise
 
 #[tokio::test]
+#[serial]
 async fn test_synchronise_removes_existing_sources_before_upload() {
     use llm_bucket::upload::{LLMClient, NewExternalSource};
 
@@ -186,6 +189,7 @@ async fn test_synchronise_removes_existing_sources_before_upload() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_synchronise_flattenfiles_uploads_codebase_files() {
     let temp_out = tempdir().unwrap();
     let output_dir = temp_out.path().to_path_buf();
