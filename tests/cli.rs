@@ -4,13 +4,13 @@ use tempfile::NamedTempFile;
 use std::fs::write;
 use std::env;
 
-/// Creates a minimal config file for the CLI to read.
+/// Creates a minimal config file for the CLI to read (no upload section).
 fn create_minimal_config() -> NamedTempFile {
     let config = NamedTempFile::new().expect("Creating temp config file failed");
-    // The content can be almost empty—it's not parsed nor validated at the CLI layer.
+    // The upload section is now omitted—only download and process remain.
     write(
         config.path(),
-        b"download:\n  output_dir: ./tmp\n  sources:\n    - type: git\n      repo_url: \"git@github.com:kasbuunk/llm-bucket.git\"\n      reference: null\nprocess:\n  kind: FlattenFiles\nupload:\n  bucket_id: 123\n",
+        b"download:\n  output_dir: ./tmp\n  sources:\n    - type: git\n      repo_url: \"git@github.com:kasbuunk/llm-bucket.git\"\n      reference: null\nprocess:\n  kind: FlattenFiles\n"
     )
     .expect("Writing temp config failed");
     config
