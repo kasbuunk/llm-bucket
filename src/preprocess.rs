@@ -111,6 +111,11 @@ fn process_flatten_files(input: ProcessInput) -> Result<ExternalSourceInput, Pro
             let entry = entry_res?;
             let path = entry.path();
             if path.is_dir() {
+                // Skip .git and target directories
+                let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                if file_name == ".git" || file_name == "target" {
+                    continue;
+                }
                 visit_dir(&path, repo_path, results)?;
             } else if path.is_file() {
                 // compute a flat filename with "__" as a separator
