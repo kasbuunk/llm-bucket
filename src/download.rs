@@ -24,15 +24,33 @@ pub fn run(config: &crate::config::Config) -> Result<(), ()> {
             // If full_source_path exists, remove it for a clean clone
             if full_source_path.exists() {
                 if let Err(e) = fs::remove_dir_all(&full_source_path) {
-                    eprintln!("Error removing source subdir: {e}");
+                    tracing::error!(
+                        error = ?e,
+                        path = %full_source_path.display(),
+                        "Failed to remove existing source subdir"
+                    );
                     return Err(());
+                } else {
+                    tracing::debug!(
+                        path = %full_source_path.display(),
+                        "Removed existing source subdir"
+                    );
                 }
             } else {
                 // Ensure output dir exists for placing subdirectories
                 if !Path::new(out_dir).exists() {
                     if let Err(e) = fs::create_dir_all(out_dir) {
-                        eprintln!("Error creating output dir: {e}");
+                        tracing::error!(
+                            error = ?e,
+                            path = %Path::new(out_dir).display(),
+                            "Failed to create output directory"
+                        );
                         return Err(());
+                    } else {
+                        tracing::debug!(
+                            path = %Path::new(out_dir).display(),
+                            "Created output directory"
+                        );
                     }
                 }
             }
@@ -44,14 +62,35 @@ pub fn run(config: &crate::config::Config) -> Result<(), ()> {
                 .arg(&full_source_path)
                 .status();
 
-            if let Ok(s) = status {
-                if !s.success() {
-                    eprintln!("git exited with code {}", s);
+            match status {
+                Ok(s) if s.success() => {
+                    tracing::info!(
+                        repo_url = repo_url,
+                        reference = reference,
+                        path = %full_source_path.display(),
+                        status = ?s,
+                        "Successfully cloned git repository"
+                    );
+                },
+                Ok(s) => {
+                    tracing::error!(
+                        repo_url = repo_url,
+                        reference = reference,
+                        path = %full_source_path.display(),
+                        "Git exited with non-zero code: {}", s
+                    );
                     return Err(());
                 }
-            } else if let Err(e) = status {
-                eprintln!("Failed to launch git: {e}");
-                return Err(());
+                Err(e) => {
+                    tracing::error!(
+                        error = ?e,
+                        repo_url = repo_url,
+                        reference = reference,
+                        path = %full_source_path.display(),
+                        "Failed to launch git process"
+                    );
+                    return Err(());
+                }
             }
 
             // After cloning, checkout the correct reference (branch, tag, or commit SHA)
@@ -63,20 +102,41 @@ pub fn run(config: &crate::config::Config) -> Result<(), ()> {
                 .status();
 
             match checkout_status {
-                Ok(s) if s.success() => continue,
+                Ok(s) if s.success() => {
+                    tracing::info!(
+                        repo_url = repo_url,
+                        reference = reference,
+                        path = %full_source_path.display(),
+                        status = ?s,
+                        "Checked out git reference"
+                    );
+                    continue
+                }
                 Ok(s) => {
-                    eprintln!("git checkout exited with code {}", s);
+                    tracing::error!(
+                        repo_url = repo_url,
+                        reference = reference,
+                        path = %full_source_path.display(),
+                        "Git checkout exited with non-zero code: {}", s
+                    );
                     return Err(());
                 }
                 Err(e) => {
-                    eprintln!("Failed to launch git checkout: {e}");
+                    tracing::error!(
+                        error = ?e,
+                        repo_url = repo_url,
+                        reference = reference,
+                        path = %full_source_path.display(),
+                        "Failed to launch git checkout"
+                    );
                     return Err(());
                 }
             }
         } else {
-            eprintln!("Source type not supported yet by download::run");
+            tracing::error!("Source type not supported yet by download::run");
             return Err(());
         }
     }
+    tracing::info!("All sources successfully downloaded, exiting download::run with Ok");
     Ok(())
 }

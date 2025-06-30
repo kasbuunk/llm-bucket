@@ -112,17 +112,32 @@ pub struct LLMClient {
 impl LLMClient {
     pub fn new_from_env() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         dotenvy::dotenv().ok(); // loads environment variables from .env if present
-        let api_key = env::var("OCP_APIM_SUBSCRIPTION_KEY")?;
-        let bucket_id = env::var("BUCKET_ID")?.parse::<i64>()?;
-        let mut conf = Configuration::default();
-        conf.api_key = Some(ApiKey {
-            prefix: None,
-            key: api_key,
-        });
-        Ok(LLMClient {
-            conf,
-            bucket_id,
-        })
+        match (env::var("OCP_APIM_SUBSCRIPTION_KEY"), env::var("BUCKET_ID")) {
+            (Ok(api_key), Ok(bucket_id_raw)) => {
+                let bucket_id = bucket_id_raw.parse::<i64>().map_err(|e| {
+                    tracing::error!(error = ?e, raw = %bucket_id_raw, "Failed to parse BUCKET_ID from env");
+                    e
+                })?;
+                let mut conf = Configuration::default();
+                conf.api_key = Some(ApiKey {
+                    prefix: None,
+                    key: api_key.clone(),
+                });
+                tracing::info!(api_key_set = api_key.len() > 0, bucket_id, "Initialized LLMClient from environment");
+                Ok(LLMClient {
+                    conf,
+                    bucket_id,
+                })
+            }
+            (Err(e), _) => {
+                tracing::error!(error = ?e, "OCP_APIM_SUBSCRIPTION_KEY missing in environment");
+                Err(Box::new(e))
+            }
+            (_, Err(e)) => {
+                tracing::error!(error = ?e, "BUCKET_ID missing in environment");
+                Err(Box::new(e))
+            }
+        }
     }
 }
 
@@ -132,7 +147,7 @@ impl Uploader for LLMClient {
         &self,
         req: NewExternalSource<'_>,
     ) -> Result<ExternalSource, Box<dyn std::error::Error + Send + Sync>> {
-        // Use the generated client and model type
+        tracing::info!(bucket_id = req.bucket_id, source_name = req.name, "Uploading new external source");
         let body = CreateExternalSource {
             external_source_name: req.name.to_string(),
         };
@@ -146,14 +161,20 @@ impl Uploader for LLMClient {
         .await;
 
         match result {
-            Ok(api_src) => Ok(ExternalSource {
-                bucket_id: api_src.bucket_id,
-                external_source_id: api_src.external_source_id,
-                external_source_name: api_src.external_source_name,
-                updated_by: api_src.updated_by,
-                updated_datetime: api_src.updated_datetime,
-            }),
-            Err(e) => Err(format!("API error: {e:?}").into()),
+            Ok(api_src) => {
+                tracing::info!(source_id = api_src.external_source_id, "Successfully created external source");
+                Ok(ExternalSource {
+                    bucket_id: api_src.bucket_id,
+                    external_source_id: api_src.external_source_id,
+                    external_source_name: api_src.external_source_name,
+                    updated_by: api_src.updated_by,
+                    updated_datetime: api_src.updated_datetime,
+                })
+            }
+            Err(e) => {
+                tracing::error!(error = ?e, "API error creating external source");
+                Err(format!("API error: {e:?}").into())
+            }
         }
     }
 
@@ -163,6 +184,13 @@ impl Uploader for LLMClient {
     ) -> Result<ExternalItem, Box<dyn std::error::Error + Send + Sync>> {
         use sha2::{Digest, Sha256};
         use openapi::models::{CreateExternalItem as ApiNewItem, ProcessingState};
+
+        tracing::info!(
+            file_url = req.url,
+            external_source_id = req.external_source_id,
+            bucket_id = req.bucket_id,
+            "Uploading new external item"
+        );
 
         // Compute a SHA256 content hash
         let content_hash = {
@@ -189,75 +217,121 @@ impl Uploader for LLMClient {
             req.external_source_id as i32,
             None,
             Some(api_req),
-        ).await?;
+        ).await;
 
-        Ok(ExternalItem {
-            content_hash: api_result.content_hash,
-            external_item_id: api_result.external_item_id as i64,
-            external_source_id: api_result.external_source_id as i64,
-            processing_state: format!("{:?}", api_result.processing_state),
-            state: format!("{:?}", api_result.state),
-            updated_datetime: api_result.updated_datetime,
-            url: api_result.url,
-        })
+        match api_result {
+            Ok(api_item) => {
+                tracing::info!(
+                    external_item_id = api_item.external_item_id,
+                    url = api_item.url,
+                    state = ?api_item.state,
+                    "Successfully uploaded external item"
+                );
+                Ok(ExternalItem {
+                    content_hash: api_item.content_hash,
+                    external_item_id: api_item.external_item_id as i64,
+                    external_source_id: api_item.external_source_id as i64,
+                    processing_state: format!("{:?}", api_item.processing_state),
+                    state: format!("{:?}", api_item.state),
+                    updated_datetime: api_item.updated_datetime,
+                    url: api_item.url,
+                })
+            }
+            Err(e) => {
+                tracing::error!(error = ?e, url = req.url, "API error uploading external item");
+                Err(Box::new(e))
+            }
+        }
     }
 
     async fn get_source_by_id(
         &self,
         external_source_id: i32,
     ) -> Result<ExternalSource, Box<dyn std::error::Error + Send + Sync>> {
+        tracing::info!(external_source_id, "Fetching external source by ID");
         let api_result = get_external_source_by_id_v1_buckets_bucket_id_external_sources_external(
             &self.conf,
             self.bucket_id as i32,
             external_source_id,
             None,
         )
-        .await?;
+        .await;
 
-        Ok(ExternalSource {
-            bucket_id: api_result.bucket_id,
-            external_source_id: api_result.external_source_id,
-            external_source_name: api_result.external_source_name,
-            updated_by: api_result.updated_by,
-            updated_datetime: api_result.updated_datetime,
-        })
+        match api_result {
+            Ok(api_src) => {
+                tracing::info!(
+                    external_source_id = api_src.external_source_id,
+                    "Fetched external source"
+                );
+                Ok(ExternalSource {
+                    bucket_id: api_src.bucket_id,
+                    external_source_id: api_src.external_source_id,
+                    external_source_name: api_src.external_source_name,
+                    updated_by: api_src.updated_by,
+                    updated_datetime: api_src.updated_datetime,
+                })
+            }
+            Err(e) => {
+                tracing::error!(error = ?e, external_source_id, "Failed to fetch external source by ID");
+                Err(Box::new(e))
+            }
+        }
     }
 
     async fn list_sources(
         &self,
     ) -> Result<Vec<ExternalSource>, Box<dyn std::error::Error + Send + Sync>> {
+        tracing::info!(bucket_id = self.bucket_id, "Listing all external sources for bucket");
         let api_results = get_external_sources_for_bucket_v1_buckets_bucket_id_external_sources_get(
             &self.conf,
             self.bucket_id as i32,
             None,
         )
-        .await?;
+        .await;
 
-        Ok(api_results
-            .into_iter()
-            .map(|api_src| ExternalSource {
-                bucket_id: api_src.bucket_id,
-                external_source_id: api_src.external_source_id,
-                external_source_name: api_src.external_source_name,
-                updated_by: api_src.updated_by,
-                updated_datetime: api_src.updated_datetime,
-            })
-            .collect())
+        match api_results {
+            Ok(sources) => {
+                tracing::info!(count = sources.len(), "Fetched all sources in bucket");
+                Ok(sources
+                    .into_iter()
+                    .map(|api_src| ExternalSource {
+                        bucket_id: api_src.bucket_id,
+                        external_source_id: api_src.external_source_id,
+                        external_source_name: api_src.external_source_name,
+                        updated_by: api_src.updated_by,
+                        updated_datetime: api_src.updated_datetime,
+                    })
+                    .collect())
+            }
+            Err(e) => {
+                tracing::error!(error = ?e, "Failed to list sources for bucket");
+                Err(Box::new(e))
+            }
+        }
     }
 
     async fn delete_source_by_id(
         &self,
         external_source_id: i32,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        delete_external_source_v1_buckets_bucket_id_external_sources_external_sou(
+        tracing::info!(bucket_id = self.bucket_id, external_source_id, "Deleting external source");
+        let res = delete_external_source_v1_buckets_bucket_id_external_sources_external_sou(
             &self.conf,
             self.bucket_id as i32,
             external_source_id,
             None,
         )
-        .await
-        .map(|_| ())
-        .map_err(|e| format!("API error deleting external source: {e:?}").into())
+        .await;
+        match res {
+            Ok(_) => {
+                tracing::info!(external_source_id, "Successfully deleted external source");
+                Ok(())
+            }
+            Err(e) => {
+                tracing::error!(error = ?e, external_source_id, "Failed to delete external source");
+                Err(format!("API error deleting external source: {e:?}").into())
+            }
+        }
     }
 
     async fn delete_item_by_id(
@@ -265,15 +339,24 @@ impl Uploader for LLMClient {
         external_source_id: i64,
         external_item_id: i64,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        openapi::apis::external_api::delete_external_item_v1_buckets_bucket_id_external_sources_external_sourc(
+        tracing::info!(bucket_id = self.bucket_id, external_source_id, external_item_id, "Deleting external item");
+        let res = openapi::apis::external_api::delete_external_item_v1_buckets_bucket_id_external_sources_external_sourc(
             &self.conf,
             self.bucket_id as i32,
             external_source_id as i32,
             external_item_id as i32,
             None,
         )
-        .await
-        .map(|_| ())
-        .map_err(|e| format!("API error deleting external item: {e:?}").into())
+        .await;
+        match res {
+            Ok(_) => {
+                tracing::info!(external_item_id, external_source_id, "Successfully deleted external item");
+                Ok(())
+            }
+            Err(e) => {
+                tracing::error!(error = ?e, external_item_id, external_source_id, "Failed to delete external item");
+                Err(format!("API error deleting external item: {e:?}").into())
+            }
+        }
     }
 }

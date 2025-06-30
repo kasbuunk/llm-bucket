@@ -4,6 +4,7 @@
 use std::path::{Path, PathBuf};
 use crate::code_to_pdf::{code_file_to_pdf, CodeToPdfError};
 use tempfile;
+use tracing::{info, error, debug};
 
 /// Processor configuration - describes how the sources are processed into uploadable items.
 #[derive(Debug)]
@@ -54,36 +55,57 @@ impl From<std::io::Error> for ProcessError {
 
 /// Main processor function: for the kind specified in config, process this input and return a single source+items.
 pub fn process(config: &ProcessConfig, input: ProcessInput) -> Result<ExternalSourceInput, ProcessError> {
-   match config.kind {
-       ProcessorKind::ReadmeToPDF => process_readme_to_pdf(input),
-       ProcessorKind::FlattenFiles => process_flatten_files(input),
-       // Add more processor kinds as needed
-   }
+    info!(processor = ?config.kind, name = input.name, "Starting processing for source");
+    let result = match config.kind {
+        ProcessorKind::ReadmeToPDF => process_readme_to_pdf(input),
+        ProcessorKind::FlattenFiles => process_flatten_files(input),
+        // Add more processor kinds as needed
+    };
+    match &result {
+        Ok(ext) => info!(items = ext.external_items.len(), "Processing completed successfully"),
+        Err(e) => error!(error = ?e, "Processing failed"),
+    };
+    result
 }
 
 ///
 fn process_readme_to_pdf(input: ProcessInput) -> Result<ExternalSourceInput, ProcessError> {
     let readme_path = input.repo_path.join("README.md");
+    debug!(repo_path = %input.repo_path.display(), "Looking for README.md in repo path");
 
     if !readme_path.exists() {
+        error!(path = %readme_path.display(), "No README.md found in repository");
         return Err(ProcessError::NoReadme);
     }
 
     // Prepare a temp output file path for pdf generation
     let tmp_pdf = tempfile::NamedTempFile::new()
-        .map_err(|e| ProcessError::Io(e))?;
+        .map_err(|e| {
+            error!(error = ?e, "Failed to create temp file for PDF output");
+            ProcessError::Io(e)
+        })?;
     let tmp_pdf_path = tmp_pdf.path();
 
     // Call the code_to_pdf module (on-disk)
     code_file_to_pdf(&readme_path, tmp_pdf_path)
-        .map_err(|e| match e {
-            CodeToPdfError::Io(e) => ProcessError::Io(e),
-            CodeToPdfError::EmptyInput => ProcessError::Other("PDF: Empty input".into()),
-            CodeToPdfError::Font(_) => ProcessError::Other("PDF: font error".into()),
+        .map_err(|e| {
+            match &e {
+                CodeToPdfError::Io(err) => error!(path = %readme_path.display(), error = ?err, "IO error during PDF generation"),
+                CodeToPdfError::EmptyInput => error!("Attempted PDF generation with empty input"),
+                CodeToPdfError::Font(desc) => error!(desc = *desc, "Font error during PDF generation"),
+            }
+            match e {
+                CodeToPdfError::Io(e) => ProcessError::Io(e),
+                CodeToPdfError::EmptyInput => ProcessError::Other("PDF: Empty input".into()),
+                CodeToPdfError::Font(_) => ProcessError::Other("PDF: font error".into()),
+            }
         })?;
 
     // Read PDF as bytes
-    let content = std::fs::read(tmp_pdf_path).map_err(ProcessError::Io)?;
+    let content = std::fs::read(tmp_pdf_path).map_err(|e| {
+        error!(error = ?e, path = %tmp_pdf_path.display(), "Failed to read generated PDF from disk");
+        ProcessError::Io(e)
+    })?;
 
     // Prepare the result structures
     let ext_item = ExternalItemInput {
@@ -91,6 +113,7 @@ fn process_readme_to_pdf(input: ProcessInput) -> Result<ExternalSourceInput, Pro
         content,
     };
 
+    info!(filename = "README.pdf", size = ext_item.content.len(), "Generated README.pdf from README.md");
     Ok(ExternalSourceInput {
         name: input.name,
         external_items: vec![ext_item],
@@ -99,6 +122,7 @@ fn process_readme_to_pdf(input: ProcessInput) -> Result<ExternalSourceInput, Pro
 
 /// Recursively flatten all files and output as items with "__" as directory separator.
 fn process_flatten_files(input: ProcessInput) -> Result<ExternalSourceInput, ProcessError> {
+    info!(path = %input.repo_path.display(), "Flattening files in repository");
     let mut external_items = Vec::new();
     let repo_path = &input.repo_path;
     let base_len = repo_path.components().count();
@@ -115,6 +139,7 @@ fn process_flatten_files(input: ProcessInput) -> Result<ExternalSourceInput, Pro
                 // Skip .git and target directories
                 let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
                 if file_name == ".git" || file_name == "target" {
+                    debug!(path = %path.display(), "Skipping directory");
                     continue;
                 }
                 visit_dir(&path, repo_path, results)?;
@@ -128,17 +153,29 @@ fn process_flatten_files(input: ProcessInput) -> Result<ExternalSourceInput, Pro
                     }
                     flat_name.push_str(&comp.as_os_str().to_string_lossy());
                 }
-                let content = std::fs::read(&path).map_err(ProcessError::Io)?;
-                results.push(ExternalItemInput {
-                    filename: flat_name,
-                    content,
-                });
+                match std::fs::read(&path) {
+                    Ok(content) => {
+                        debug!(filename = %flat_name, size = content.len(), "Flattened file");
+                        results.push(ExternalItemInput {
+                            filename: flat_name,
+                            content,
+                        });
+                    }
+                    Err(e) => {
+                        error!(error = ?e, path = %path.display(), "Failed to read file while flattening");
+                        return Err(ProcessError::Io(e));
+                    }
+                }
             }
         }
         Ok(())
     }
-    visit_dir(repo_path, repo_path, &mut external_items)?;
+    if let Err(e) = visit_dir(repo_path, repo_path, &mut external_items) {
+        error!(error = ?e, "Error occurred during directory flattening");
+        return Err(e);
+    }
 
+    info!(count = external_items.len(), "Completed flattening files in repository");
     Ok(ExternalSourceInput {
         name: input.name,
         external_items,

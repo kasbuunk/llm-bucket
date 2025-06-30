@@ -1,6 +1,7 @@
 //! Coordinating module for download-process-upload pipeline.
 
 use futures::future::try_join_all;
+use tracing::{info, error, debug};
 
 use crate::preprocess;
 pub use preprocess::{
@@ -70,26 +71,30 @@ pub async fn synchronise(config: &SynchroniseConfig) -> Result<SynchroniseReport
     // Step 0: Empty the bucket before doing anything else.
     let uploader = match &config.upload.api_key {
         Some(api_key) => {
-            println!("[SYNC] API key for upload provided ({} chars)", api_key.len());
+            info!(api_key_len = api_key.len(), "[SYNC] API key for upload provided");
             crate::upload::LLMClient::new_from_env()
         }
         None => {
-            println!("[SYNC] No explicit API key for upload, using env/default.");
+            info!("[SYNC] No explicit API key for upload, using env/default.");
             crate::upload::LLMClient::new_from_env()
         },
     }
     .map_err(|e| {
-        eprintln!("[SYNC][ERROR] Failed to construct uploader: {:?}", e);
+        error!(error = ?e, "[SYNC][ERROR] Failed to construct uploader");
         format!("Failed to construct uploader: {e:?}")
     })?;
 
+    info!("[SYNC] Starting full synchronisation pipeline");
+
     if let Err(e) = empty_bucket(&uploader).await {
-        eprintln!("[SYNC][ERROR] Failed to empty bucket before sync: {:?}", e);
+        error!(error = ?e, "[SYNC][ERROR] Failed to empty bucket before sync");
         return Err(format!("Failed to empty bucket before sync: {e:?}"));
     }
+    info!("[SYNC] Emptied bucket before sync");
 
     // Step 1: Download
     for source in &config.download.sources {
+        info!(source = ?source, "[SYNC] Starting download for source");
         let dl_config = crate::config::Config {
             output_dir: config.download.output_dir.clone(),
             sources: vec![match source {
@@ -101,10 +106,10 @@ pub async fn synchronise(config: &SynchroniseConfig) -> Result<SynchroniseReport
         };
         match crate::download::run(&dl_config) {
             Ok(_) => {
-                println!("[SYNC] Download succeeded for {:?}", source);
+                info!(source = ?source, "[SYNC] Download succeeded");
             },
             Err(e) => {
-                eprintln!("[SYNC][ERROR] Download failed for {:?}: {:?}", source, e);
+                error!(source = ?source, error = ?e, "[SYNC][ERROR] Download failed");
                 return Err(format!("Download failed for {:?}: {:?}", source, e));
             }
         }
@@ -129,13 +134,14 @@ pub async fn synchronise(config: &SynchroniseConfig) -> Result<SynchroniseReport
         name: name.clone(),
         repo_path: local_path,
     };
+    info!(repo_name = %name, "[SYNC] Invoking processing step (process README to PDF)");
     let source_for_upload = match preprocess::process(&config.process, process_input) {
         Ok(src) => {
-            println!("[SYNC] Processing succeeded: {} items", src.external_items.len());
+            info!(items = src.external_items.len(), "[SYNC] Processing succeeded");
             src
         },
         Err(e) => {
-            eprintln!("[SYNC][ERROR] Process step failed: {:?}", e);
+            error!(error = ?e, "[SYNC][ERROR] Process step failed");
             return Err(format!("Process step failed: {:?}", e));
         }
     };
@@ -149,14 +155,15 @@ pub async fn synchronise(config: &SynchroniseConfig) -> Result<SynchroniseReport
         bucket_id: config.upload.bucket_id as i32,
     };
 
+    info!(source_name = %source_for_upload.name, "[SYNC][UPLOAD] Creating new external source");
     let ext_source =
         match uploader.create_source(new_source).await {
             Ok(src) => {
-                println!("[SYNC][UPLOAD] create_source succeeded: external_source_id={:?}", src.external_source_id);
+                info!(external_source_id = src.external_source_id, "[SYNC][UPLOAD] create_source succeeded");
                 src
             }
             Err(e) => {
-                eprintln!("[SYNC][ERROR][UPLOAD] create_source (external source) failed: {:?}", e);
+                error!(error = ?e, "[SYNC][ERROR][UPLOAD] create_source (external source) failed");
                 return Err(format!("[UPLOAD fail @ create_source]: {e:?}"));
             }
         };
@@ -166,7 +173,7 @@ pub async fn synchronise(config: &SynchroniseConfig) -> Result<SynchroniseReport
 
     // Upload all items, and record their IDs/names from upload responses
     for ext_item in &source_for_upload.external_items {
-        println!("[SYNC][UPLOAD] Preparing upload for file: {}", ext_item.filename);
+        info!(filename = %ext_item.filename, "[SYNC][UPLOAD] Preparing upload for file");
         let content = String::from_utf8_lossy(&ext_item.content);
         let item_req = crate::upload::NewExternalItem {
             content: &content, // Re-upload as UTF-8 text (for test, but might need to change to raw binary for real PDF upload)
@@ -177,11 +184,11 @@ pub async fn synchronise(config: &SynchroniseConfig) -> Result<SynchroniseReport
         };
         let uploaded = match uploader.create_item(item_req).await {
             Ok(resp) => {
-                println!("[SYNC][UPLOAD] create_item succeeded: file={}, state={:?}", ext_item.filename, resp.processing_state);
+                info!(file = %ext_item.filename, state = %resp.processing_state, "[SYNC][UPLOAD] create_item succeeded");
                 // Print full struct as JSON for debug
                 match serde_json::to_string_pretty(&resp) {
-                    Ok(json) => println!("[SYNC][UPLOAD][DEBUG] Uploaded ExternalItem as JSON:\n{}", json),
-                    Err(e) => eprintln!("[SYNC][UPLOAD][DEBUG] Failed to serialize ExternalItem as JSON: {:?}", e),
+                    Ok(json) => debug!(json = %json, file = %ext_item.filename, "[SYNC][UPLOAD][DEBUG] Uploaded ExternalItem as JSON"),
+                    Err(e) => error!(file = %ext_item.filename, error = ?e, "[SYNC][UPLOAD][DEBUG] Failed to serialize ExternalItem as JSON"),
                 }
                 // Add the ID and name to the report immediately
                 uploaded_items_report.push(ExternalItemReport {
@@ -191,13 +198,13 @@ pub async fn synchronise(config: &SynchroniseConfig) -> Result<SynchroniseReport
                 resp
             }
             Err(e) => {
-                eprintln!("[SYNC][ERROR][UPLOAD] create_item (external item) failed for file={}: {:?}", ext_item.filename, e);
+                error!(file = %ext_item.filename, error = ?e, "[SYNC][ERROR][UPLOAD] create_item (external item) failed");
                 return Err(format!("[UPLOAD fail @ create_item for file={}]: {e:?}", ext_item.filename));
             }
         };
 
         if uploaded.processing_state != "Submitted" {
-            eprintln!("[SYNC][ERROR][UPLOAD] Uploaded item's processing_state was not 'Submitted' for file={}: {:?}", ext_item.filename, uploaded.processing_state);
+            error!(file = %ext_item.filename, state = %uploaded.processing_state, "[SYNC][ERROR][UPLOAD] Uploaded item's processing_state was not 'Submitted'");
             return Err(format!(
                 "[UPLOAD fail @ create_item post-state: file={}] Uploaded item's processing_state was not 'Submitted': {:?}",
                 ext_item.filename, uploaded.processing_state

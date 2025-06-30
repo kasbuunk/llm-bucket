@@ -34,15 +34,14 @@ pub async fn run(cli: Cli) -> Result<()> {
     let result = match cli.command {
         Commands::Sync { config } => {
             let config = load_config(config)?;
-            println!("Synchronise starting...");
+            tracing::info!(command = "sync", "Starting synchronisation process");
             match synchronise(&config).await {
                 Ok(report) => {
-                    println!("Synchronise complete.\nReport:");
-                    println!("{:#?}", report);
+                    tracing::info!(command = "sync", ?report, "Synchronisation complete");
                     Ok(())
                 }
                 Err(e) => {
-                    eprintln!("[ERROR] Synchronisation failed: {}", e);
+                    tracing::error!(command = "sync", error = %e, "Synchronisation failed");
                     Err(anyhow::Error::msg(e))
                 }
             }

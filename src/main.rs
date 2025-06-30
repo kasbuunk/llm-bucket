@@ -4,11 +4,19 @@ use clap::Parser;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Load environment
     dotenv::dotenv().ok();
 
     // Initialize tracing for the CLI.
     tracing_subscriber::fmt::init();
+    tracing::info!("CLI application startup: tracing initialised, environment loaded");
 
     let cli = Cli::parse();
-    run(cli).await
+    tracing::info!(?cli, "CLI arguments parsed, invoking run");
+    let result = run(cli).await;
+    match &result {
+        Ok(_) => tracing::info!("CLI completed successfully"),
+        Err(e) => tracing::error!(error = %e, "CLI exited with error"),
+    }
+    result
 }
