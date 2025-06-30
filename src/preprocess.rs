@@ -6,6 +6,7 @@ use crate::code_to_pdf::{code_file_to_pdf, CodeToPdfError};
 use tempfile;
 
 /// Processor configuration - describes how the sources are processed into uploadable items.
+#[derive(Debug)]
 pub struct ProcessConfig {
     pub kind: ProcessorKind,
 }

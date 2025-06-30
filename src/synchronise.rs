@@ -12,6 +12,7 @@ extern crate tokio; // Use extern crate for runtime context
 use crate::upload::Uploader; // trait for async upload calls
 
 /// The top-level synchronise configuration.
+#[derive(Debug)]
 pub struct SynchroniseConfig {
     pub download: DownloadConfig,
     pub process: ProcessConfig,
@@ -19,6 +20,7 @@ pub struct SynchroniseConfig {
 }
 
 /// Download configuration - what sources to fetch and where.
+#[derive(Debug)]
 pub struct DownloadConfig {
     pub output_dir: PathBuf,
     pub sources: Vec<SourceAction>,
@@ -38,6 +40,7 @@ pub struct GitSource {
 }
 
 /// Upload configuration - where/how to upload the processed result.
+#[derive(Debug)]
 pub struct UploadConfig {
     pub bucket_id: i64,
     pub api_key: Option<String>,

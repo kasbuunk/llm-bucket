@@ -3,6 +3,7 @@
 /target
 /test_output/
 /.env
+/tmp
 config.yaml
 
 # Ignore confidential OpenAPI schema and generated client
