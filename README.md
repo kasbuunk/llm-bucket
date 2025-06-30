@@ -1,192 +1,161 @@
-# bucket-sync
+# llm-bucket
 
-A command-line utility for aggregating knowledge snapshots—including git repositories, Confluence spaces, Slack channels, and more—and publishing them into a flat storage bucket. Designed primarily to optimize content for downstream LLM (Large Language Model) ingestion, `bucket-sync` enables organizations to regularly export and harmonize knowledge from diverse sources into a unified, machine-ingestible format.
-
-## Primary Use Cases
-
-- Regularly export documentation, codebases, or chat logs for LLM training or retrieval-augmented generation.
-- Automate consolidation of different knowledge silos into a single bucket.
-- Schedule routine syncs of internal knowledge sources for analytics and search.
+A fast, structured CLI utility for aggregating knowledge snapshots from Git repositories (and soon other sources) into ready-to-ingest local outputs and/or uploading them to an API for knowledge base workflows, LLM training, and auditing. Designed for automation, repeatability, and clean output.
 
 ---
 
 ## Features
 
-### Currently Supported
-
-- **Export Git Branches:** Extract the contents of a specified git branch and publish to a local directory.
-
-### Roadmap (Upcoming Features)
-
-- **Confluence Space Export:** Sync Confluence pages/spaces to the bucket.
-- **Slack Channel Export:** Extract message histories from Slack channels.
-- **Multiple Source Integration:** Sync from multiple heterogeneous sources in a single run.
-- **Scheduling:** Support for cron/scheduled automated runs.
-- **Service Accounts:** Isolate credentials and authorization per source.
-- **Enhanced Error Handling:** Rich reporting and export of sync results.
+- **Sync multiple Git repositories** (public or private) in a single run via YAML config.
+- **Processing options:** Flatten all files or (optionally) convert repository README.md to PDF.
+- **Deterministic, isolated output folders** for easy downstream use.
+- **Single-command CLI**—no interactive/manual steps required.
+- **Uploads to API (if configured)**: integrates with external knowledge stores (requires environment config).
+- **Extensible pipeline:** Designed for additional source types (Confluence, Slack, etc.) in future.
 
 ---
 
-## Configuration for API Upload (Confidential)
+## Quick Start
 
-To configure confidential API connection parameters (such as server URL and API token for uploading data):
+### 1. Install Prerequisites
 
-1. Copy the example environment file:
-   ```sh
-   cp .env.example .env
-   ```
-2. Edit `.env` and provide your own values for:
-   - `API_URL`
-   - `OCP_APIM_SUBSCRIPTION_KEY`
-3. **Never commit your `.env` file.** The real `.env` is gitignored for safety.
+- [Rust](https://rustup.rs/) (stable, edition 2021)
+- [Git](https://git-scm.com/) (must be on your PATH)
 
-The uploader/client and tests will load these parameters using [dotenv](https://crates.io/crates/dotenv) at runtime.
+### 2. Build the CLI
 
-## Installation
-
-### Prerequisites
-
-- **Language:** [Replace with actual language, e.g., Python >=3.10, Go >=1.18, Node.js >=18, etc.]
-- **Tools:** git (for source snapshot), storage bucket CLI/SDK (if publishing to cloud, future)
-- **Authentication:** Access tokens/credentials for each source (see Configuration).
-
-### Local Install
-
-```shell
-git clone https://github.com/kasbuunk/bucket-sync.git
-cd bucket-sync
-# For Python example:
-pip install .
-# For Node.js example:
-npm install
-# For Go example:
-go build -o publish-cli ./cmd/publish-cli
+```sh
+git clone https://github.com/kasbuunk/llm-bucket.git
+cd llm-bucket
+cargo build --release
 ```
+
+The executable will be at `./target/release/llm-bucket`.
 
 ---
 
 ## Configuration
 
-### Credential Management
+All actions are configured in a [YAML](https://yaml.org/) file. No command-line flags for input sources.
 
-- **Environment Variables:** Use standard ENV vars for per-source secrets (e.g., `GIT_TOKEN`, `CONFLUENCE_API_KEY`).
-- **Config File:** Optionally supply a YAML/JSON config file to store source definitions and credentials.
-- **CLI Flags:** Override config values at runtime via flags (see Usage).
-
-#### Example Config (`bucket-sync.yaml`)
+### Example minimal config (`config.yaml`):
 
 ```yaml
-sources:
-  - type: git
-    repo_url: https://github.com/org/repo.git
-    branch: main
-    auth_token: <GIT_TOKEN>
-    out_dir: ./exported/git-repo-1
-  # - type: confluence
-  #   space_key: <SPACE_KEY>
-  #   base_url: https://company.atlassian.net/wiki
-  #   auth_token: <CONFLUENCE_API_KEY>
-  #   out_dir: ./exported/confluence-space-1
+download:
+  output_dir: ./output
+  sources:
+    - type: git
+      repo_url: "https://github.com/youruser/yourrepo.git"
+      reference: main         # optional: branch/tag/commit
+
+process:
+  kind: FlattenFiles          # or ReadmeToPDF
 ```
 
-**Note:** Never commit credentials to version control! Instead, use placeholders that reference environment variables.
+- `output_dir`: Root directory for clones & processed data (recommended: gitignore this in production).
+- `sources`: List of source blocks. Currently only `type: git` is supported.
+    - `repo_url`: HTTPS or SSH URL for the git repo.
+    - `reference`: Optional; branch/tag/commit (default: main).
+- `process.kind`: Currently accepts:
+    - `FlattenFiles`: Flatten all files for upload.
+    - `ReadmeToPDF`: Convert repository README.md to PDF (if implemented for your repo).
 
 ---
 
 ## Usage
 
-### CLI Reference
+After configuring `config.yaml`, run:
 
-```shell
-publish-cli export git --repo-url https://github.com/org/repo.git --branch main --out-dir ./exported/repo-main
+```sh
+./target/release/llm-bucket sync --config config.yaml
 ```
 
-#### Flags
+- The CLI clones each repo and processes it as specified.
+- Output is placed under `output_dir` (subdirectories per repo, deterministic naming).
 
-- `--repo-url` (**required**): URL of the git repository.
-- `--branch` (**required**): Branch to export (e.g., `main`).
-- `--out-dir` (**required**): Local output directory for the exported contents.
-- `--auth-token` (optional): Git authentication token (can also use `GIT_TOKEN` env).
+**Note:** Only subcommand available is `sync` (see below).
 
 ---
 
-## Examples
+## Upload/API Integration
 
-### Minimal Example
+Uploading to a remote knowledge base/API requires these environment variables:
 
-Export a git branch to a local directory:
+- `BUCKET_ID` — Integer bucket/project ID (provided by backend/admin)
+- `OCP_APIM_SUBSCRIPTION_KEY` — API key/token for upload
 
-```shell
-publish-cli export git --repo-url https://github.com/org/repo.git --branch main --out-dir ./dump/main
-```
+You can use a `.env` file (auto-loaded by the CLI) or set variables in your environment:
 
-### Multi-Source Example (future)
-
-Prepare a config with several sources:
-
-```yaml
-sources:
-  - type: git
-    repo_url: https://github.com/org/infra.git
-    branch: develop
-    auth_token: ${GIT_TOKEN}
-    out_dir: ./exports/infra
-  - type: confluence
-    space_key: HR
-    base_url: https://company.atlassian.net/wiki
-    auth_token: ${CONFLUENCE_API_KEY}
-    out_dir: ./exports/HR-wiki
-  - type: slack
-    channel: C0123456
-    auth_token: ${SLACK_BOT_TOKEN}
-    out_dir: ./exports/slack-hr
-```
-Invoke:
-```shell
-publish-cli export --config bucket-sync.yaml
+```sh
+export BUCKET_ID=1234
+export OCP_APIM_SUBSCRIPTION_KEY=your-token-here
 ```
 
 ---
 
-## Logging & Reporting
+## Output & Structure
 
-- **Default:** Progress, errors, and summary reports output to stdout.
-- **Verbose/JSON:** For automation, append `--log-format json` for machine-readable logs.
-- **Log Files:** (Planned) Optionally write logs and reports to file for audit or debugging.
-- **Exit Codes:** Non-zero on failure. Summaries report number of sources succeeded/failed.
+- All results are placed within the configured `output_dir`.
+    - Each source is mapped to a uniquely named subfolder (sanitized from repo URL and branch).
+    - Data format and structure matches your selected `process.kind`.
+- Example: For a single repo, with FlattenFiles, output might look like:
+    ```
+    ./output/
+      git_github_com_youruser_yourrepo_git_main/
+        src/
+        README.md
+        ...
+    ```
 
 ---
 
-## Extensibility Guide
+## Logging & Diagnostics
 
-### Adding New Source Handlers
+- All actions are logged via [tracing](https://docs.rs/tracing).
+- Log summaries printed to stdout/stderr, including errors and high-level summaries.
 
-- Implement new source modules under `src/sources/` (or equivalent).
-- Each source handler should expose `export()` with common signature: `(config, credentials, out_dir)`
+---
 
-### Registering New Authentication Modules
+## Development & Testing
 
-- Add new auth strategies under `src/auth/`. Handlers should resolve credentials via config, env, or secret manager.
-- Register the handler in the authentication registry or factory.
+Run all checks and tests:
+
+```sh
+cargo test
+```
+
+Tests cover:
+- End-to-end sync with test repos
+- CLI invocation with configs
+- Processor output validation
 
 ---
 
 ## Contribution & Roadmap
 
-### Contributing
-
-- Open issues/feature requests via [GitHub Issues](https://github.com/kasbuunk/bucket-sync/issues).
-- Fork, branch, and submit PRs following conventional commit message standards.
-- All contributions should include brief documentation/tests for new features.
-
-### Roadmap and Epics
-
-- Multi-source sync engine
-- Support for new source types (Confluence, Slack, Google Drive, etc.)
-- Config-driven scheduling (manual + cron/integrations)
-- Pluggable authentication and error-handling modules
-- Export format adapters for LLM vendor ingestion
+- All contributions welcome via PR or issues.
+- Please keep PRs small and focused.
+- Future: support for Confluence, Slack, Google Drive, robust error reports, scheduling, more processors.
 
 ---
 
-**Questions/Feedback?** Open a GitHub issue or join the project discussion board.
+## FAQ
+
+**Q: How do I add a new source type?**  
+A: See the `src/` directory for modular structure; implement new `SourceAction` and expand the YAML loader, then add download, processing, and (optional) upload logic.
+
+**Q: Is interactive usage supported?**  
+A: No—llm-bucket is for declarative, repeatable workflows. Only config files.
+
+**Q: Is output safe for public commit?**  
+A: No. Output is meant for ingestion/upload, not VCS; it should be gitignored.
+
+---
+
+## License
+
+MIT (see LICENSE).
+
+---
+
+**For design notes and future directions, see [`notes.md`](notes.md).**
