@@ -12,9 +12,11 @@ pub struct ProcessConfig {
 
 #[derive(Debug, Clone)]
 pub enum ProcessorKind {
-    /// For each source, outputs a single PDF (README.md converted)
-    ReadmeToPDF,
-    // Future: CodeToPDF, DirectoryToPDF, etc
+   /// For each source, outputs a single PDF (README.md converted)
+   ReadmeToPDF,
+   /// Flattens all files in the repo, uploading them with directory encoded in name
+   FlattenFiles,
+   // Future: CodeToPDF, DirectoryToPDF, etc
 }
 
 /// Input for processing step: a single source location (name, local path, etc)
@@ -51,12 +53,14 @@ impl From<std::io::Error> for ProcessError {
 
 /// Main processor function: for the kind specified in config, process this input and return a single source+items.
 pub fn process(config: &ProcessConfig, input: ProcessInput) -> Result<ExternalSourceInput, ProcessError> {
-    match config.kind {
-        ProcessorKind::ReadmeToPDF => process_readme_to_pdf(input),
-        // Add more processor kinds as needed
-    }
+   match config.kind {
+       ProcessorKind::ReadmeToPDF => process_readme_to_pdf(input),
+       ProcessorKind::FlattenFiles => process_flatten_files(input),
+       // Add more processor kinds as needed
+   }
 }
 
+///
 fn process_readme_to_pdf(input: ProcessInput) -> Result<ExternalSourceInput, ProcessError> {
     let readme_path = input.repo_path.join("README.md");
 
@@ -89,5 +93,48 @@ fn process_readme_to_pdf(input: ProcessInput) -> Result<ExternalSourceInput, Pro
     Ok(ExternalSourceInput {
         name: input.name,
         external_items: vec![ext_item],
+    })
+}
+
+/// Recursively flatten all files and output as items with "__" as directory separator.
+fn process_flatten_files(input: ProcessInput) -> Result<ExternalSourceInput, ProcessError> {
+    let mut external_items = Vec::new();
+    let repo_path = &input.repo_path;
+    let base_len = repo_path.components().count();
+
+    fn visit_dir(
+        dir: &std::path::Path,
+        repo_path: &std::path::Path,
+        results: &mut Vec<ExternalItemInput>,
+    ) -> Result<(), ProcessError> {
+        for entry_res in std::fs::read_dir(dir)? {
+            let entry = entry_res?;
+            let path = entry.path();
+            if path.is_dir() {
+                visit_dir(&path, repo_path, results)?;
+            } else if path.is_file() {
+                // compute a flat filename with "__" as a separator
+                let rel_path = path.strip_prefix(repo_path).unwrap();
+                let mut flat_name = String::new();
+                for (i, comp) in rel_path.components().enumerate() {
+                    if i > 0 {
+                        flat_name.push_str("__");
+                    }
+                    flat_name.push_str(&comp.as_os_str().to_string_lossy());
+                }
+                let content = std::fs::read(&path).map_err(ProcessError::Io)?;
+                results.push(ExternalItemInput {
+                    filename: flat_name,
+                    content,
+                });
+            }
+        }
+        Ok(())
+    }
+    visit_dir(repo_path, repo_path, &mut external_items)?;
+
+    Ok(ExternalSourceInput {
+        name: input.name,
+        external_items,
     })
 }
