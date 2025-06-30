@@ -80,7 +80,7 @@ async fn emits_trace_initialised_event() {
     let _guard = tracing::subscriber::set_default(subscriber);
 
     // Import run, Cli, and Commands directly from crate root.
-    use llm_bucket::{run, Cli, Commands};
+    use llm_bucket::cli::{run, Cli, Commands};
 
     // Provide minimum config for the Sync subcommand (using a dummy path).
     let cli = Cli {

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use llm_bucket::{Cli, run};
+use llm_bucket::cli::{Cli, run};
 use clap::Parser;
 
 #[tokio::main]
