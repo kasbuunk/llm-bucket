@@ -12,7 +12,7 @@ async fn main() -> Result<()> {
     tracing::info!("CLI application startup: tracing initialised, environment loaded");
 
     let cli = Cli::parse();
-    tracing::info!(?cli, "CLI arguments parsed, invoking run");
+    tracing::info!("CLI arguments parsed, invoking run");
     let result = run(cli).await;
     match &result {
         Ok(_) => tracing::info!("CLI completed successfully"),
