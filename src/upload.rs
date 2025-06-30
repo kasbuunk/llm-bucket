@@ -65,6 +65,30 @@ pub trait Uploader: Send + Sync {
         &self,
         req: NewExternalItem<'_>,
     ) -> Result<ExternalItem, Box<dyn std::error::Error + Send + Sync>>;
+
+    /// Fetch a single external source by its ID.
+    async fn get_source_by_id(
+        &self,
+        external_source_id: i32
+    ) -> Result<ExternalSource, Box<dyn std::error::Error + Send + Sync>>;
+
+    /// Delete an external source by id.
+    async fn delete_source_by_id(
+        &self,
+        external_source_id: i32
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+
+    /// Delete an external item by id.
+    async fn delete_item_by_id(
+        &self,
+        external_source_id: i64,
+        external_item_id: i64,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+
+    /// List all external sources for the bucket.
+    async fn list_sources(
+        &self,
+    ) -> Result<Vec<ExternalSource>, Box<dyn std::error::Error + Send + Sync>>;
 }
 
 use std::env;
@@ -74,15 +98,18 @@ use openapi::apis::configuration::{ApiKey, Configuration};
 use openapi::apis::external_api::{
     create_external_source_v1_buckets_bucket_id_external_sources_post,
     CreateExternalSourceV1BucketsBucketIdExternalSourcesPostError,
+    get_external_source_by_id_v1_buckets_bucket_id_external_sources_external,
+    delete_external_source_v1_buckets_bucket_id_external_sources_external_sou,
+    get_external_sources_for_bucket_v1_buckets_bucket_id_external_sources_get,
 };
 use openapi::models::CreateExternalSource;
 
-pub struct UploaderImpl {
+pub struct LLMClient {
     conf: Configuration,
     bucket_id: i64,
 }
 
-impl UploaderImpl {
+impl LLMClient {
     pub fn new_from_env() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         dotenvy::dotenv().ok(); // loads environment variables from .env if present
         let api_key = env::var("OCP_APIM_SUBSCRIPTION_KEY")?;
@@ -92,7 +119,7 @@ impl UploaderImpl {
             prefix: None,
             key: api_key,
         });
-        Ok(UploaderImpl {
+        Ok(LLMClient {
             conf,
             bucket_id,
         })
@@ -100,7 +127,7 @@ impl UploaderImpl {
 }
 
 #[async_trait]
-impl Uploader for UploaderImpl {
+impl Uploader for LLMClient {
     async fn create_source(
         &self,
         req: NewExternalSource<'_>,
@@ -109,7 +136,6 @@ impl Uploader for UploaderImpl {
         let body = CreateExternalSource {
             external_source_name: req.name.to_string(),
         };
-
 
         let result = create_external_source_v1_buckets_bucket_id_external_sources_post(
             &self.conf,
@@ -174,5 +200,80 @@ impl Uploader for UploaderImpl {
             updated_datetime: api_result.updated_datetime,
             url: api_result.url,
         })
+    }
+
+    async fn get_source_by_id(
+        &self,
+        external_source_id: i32,
+    ) -> Result<ExternalSource, Box<dyn std::error::Error + Send + Sync>> {
+        let api_result = get_external_source_by_id_v1_buckets_bucket_id_external_sources_external(
+            &self.conf,
+            self.bucket_id as i32,
+            external_source_id,
+            None,
+        )
+        .await?;
+
+        Ok(ExternalSource {
+            bucket_id: api_result.bucket_id,
+            external_source_id: api_result.external_source_id,
+            external_source_name: api_result.external_source_name,
+            updated_by: api_result.updated_by,
+            updated_datetime: api_result.updated_datetime,
+        })
+    }
+
+    async fn list_sources(
+        &self,
+    ) -> Result<Vec<ExternalSource>, Box<dyn std::error::Error + Send + Sync>> {
+        let api_results = get_external_sources_for_bucket_v1_buckets_bucket_id_external_sources_get(
+            &self.conf,
+            self.bucket_id as i32,
+            None,
+        )
+        .await?;
+
+        Ok(api_results
+            .into_iter()
+            .map(|api_src| ExternalSource {
+                bucket_id: api_src.bucket_id,
+                external_source_id: api_src.external_source_id,
+                external_source_name: api_src.external_source_name,
+                updated_by: api_src.updated_by,
+                updated_datetime: api_src.updated_datetime,
+            })
+            .collect())
+    }
+
+    async fn delete_source_by_id(
+        &self,
+        external_source_id: i32,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        delete_external_source_v1_buckets_bucket_id_external_sources_external_sou(
+            &self.conf,
+            self.bucket_id as i32,
+            external_source_id,
+            None,
+        )
+        .await
+        .map(|_| ())
+        .map_err(|e| format!("API error deleting external source: {e:?}").into())
+    }
+
+    async fn delete_item_by_id(
+        &self,
+        external_source_id: i64,
+        external_item_id: i64,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        openapi::apis::external_api::delete_external_item_v1_buckets_bucket_id_external_sources_external_sourc(
+            &self.conf,
+            self.bucket_id as i32,
+            external_source_id as i32,
+            external_item_id as i32,
+            None,
+        )
+        .await
+        .map(|_| ())
+        .map_err(|e| format!("API error deleting external item: {e:?}").into())
     }
 }

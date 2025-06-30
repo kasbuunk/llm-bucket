@@ -1,5 +1,7 @@
 //! Coordinating module for download-process-upload pipeline.
 
+use futures::future::try_join_all;
+
 use crate::preprocess;
 pub use preprocess::{
     ProcessConfig, ProcessorKind, ProcessInput, ExternalSourceInput, ExternalItemInput, ProcessError, process
@@ -43,7 +45,46 @@ pub struct UploadConfig {
 }
 
 /// Entrypoint: synchronise the pipeline according to config.
-pub fn synchronise(config: &SynchroniseConfig) -> Result<(), String> {
+#[derive(Debug)]
+pub struct SynchroniseReport {
+    pub sources: Vec<ExternalSourceReport>,
+}
+
+#[derive(Debug)]
+pub struct ExternalSourceReport {
+    pub source_id: i64,
+    pub source_name: String,
+    pub items: Vec<ExternalItemReport>,
+}
+
+#[derive(Debug)]
+pub struct ExternalItemReport {
+    pub item_id: i64,
+    pub item_name: String,
+}
+
+pub async fn synchronise(config: &SynchroniseConfig) -> Result<SynchroniseReport, String> {
+    // Step 0: Empty the bucket before doing anything else.
+    let uploader = match &config.upload.api_key {
+        Some(api_key) => {
+            println!("[SYNC] API key for upload provided ({} chars)", api_key.len());
+            crate::upload::LLMClient::new_from_env()
+        }
+        None => {
+            println!("[SYNC] No explicit API key for upload, using env/default.");
+            crate::upload::LLMClient::new_from_env()
+        },
+    }
+    .map_err(|e| {
+        eprintln!("[SYNC][ERROR] Failed to construct uploader: {:?}", e);
+        format!("Failed to construct uploader: {e:?}")
+    })?;
+
+    if let Err(e) = empty_bucket(&uploader).await {
+        eprintln!("[SYNC][ERROR] Failed to empty bucket before sync: {:?}", e);
+        return Err(format!("Failed to empty bucket before sync: {e:?}"));
+    }
+
     // Step 1: Download
     for source in &config.download.sources {
         let dl_config = crate::config::Config {
@@ -97,37 +138,16 @@ pub fn synchronise(config: &SynchroniseConfig) -> Result<(), String> {
     };
 
     // Step 3: Upload
-    // Construct real uploader (uses env if api_key is None)
-    let uploader = match &config.upload.api_key {
-        Some(api_key) => {
-            // Use custom config if desired (not implemented, stub uses env for now)
-            println!("[SYNC] API key for upload provided ({} chars)", api_key.len());
-            crate::upload::UploaderImpl::new_from_env()
-        }
-        None => {
-            println!("[SYNC] No explicit API key for upload, using env/default.");
-            crate::upload::UploaderImpl::new_from_env()
-        },
-    }
-    .map_err(|e| {
-        eprintln!("[SYNC][ERROR] Failed to construct uploader: {:?}", e);
-        format!("Failed to construct uploader: {e:?}")
-    })?;
+    // Uploader already constructed above
 
     // Create new external source
     let new_source = crate::upload::NewExternalSource {
         name: &source_for_upload.name,
         bucket_id: config.upload.bucket_id as i32,
     };
-    let rt = match tokio::runtime::Runtime::new() {
-        Ok(runtime) => runtime,
-        Err(e) => {
-            eprintln!("[SYNC][ERROR] Tokio runtime creation failed: {:?}", e);
-            return Err(format!("Tokio RT error: {e:?}"));
-        }
-    };
+
     let ext_source =
-        match rt.block_on(uploader.create_source(new_source)) {
+        match uploader.create_source(new_source).await {
             Ok(src) => {
                 println!("[SYNC][UPLOAD] create_source succeeded: external_source_id={:?}", src.external_source_id);
                 src
@@ -138,7 +158,10 @@ pub fn synchronise(config: &SynchroniseConfig) -> Result<(), String> {
             }
         };
 
-    // Upload all items (should be only one for this processor)
+    // For accumulating upload responses
+    let mut uploaded_items_report: Vec<ExternalItemReport> = Vec::new();
+
+    // Upload all items, and record their IDs/names from upload responses
     for ext_item in &source_for_upload.external_items {
         println!("[SYNC][UPLOAD] Preparing upload for file: {}", ext_item.filename);
         let content = String::from_utf8_lossy(&ext_item.content);
@@ -149,7 +172,7 @@ pub fn synchronise(config: &SynchroniseConfig) -> Result<(), String> {
             external_source_id: ext_source.external_source_id as i64,
             processing_state: None,
         };
-        let uploaded = match rt.block_on(uploader.create_item(item_req)) {
+        let uploaded = match uploader.create_item(item_req).await {
             Ok(resp) => {
                 println!("[SYNC][UPLOAD] create_item succeeded: file={}, state={:?}", ext_item.filename, resp.processing_state);
                 // Print full struct as JSON for debug
@@ -157,6 +180,11 @@ pub fn synchronise(config: &SynchroniseConfig) -> Result<(), String> {
                     Ok(json) => println!("[SYNC][UPLOAD][DEBUG] Uploaded ExternalItem as JSON:\n{}", json),
                     Err(e) => eprintln!("[SYNC][UPLOAD][DEBUG] Failed to serialize ExternalItem as JSON: {:?}", e),
                 }
+                // Add the ID and name to the report immediately
+                uploaded_items_report.push(ExternalItemReport {
+                    item_id: resp.external_item_id as i64,
+                    item_name: ext_item.filename.clone(),
+                });
                 resp
             }
             Err(e) => {
@@ -164,7 +192,6 @@ pub fn synchronise(config: &SynchroniseConfig) -> Result<(), String> {
                 return Err(format!("[UPLOAD fail @ create_item for file={}]: {e:?}", ext_item.filename));
             }
         };
-        // All upload steps completed for item: continue to next item (if any)
 
         if uploaded.processing_state != "Submitted" {
             eprintln!("[SYNC][ERROR][UPLOAD] Uploaded item's processing_state was not 'Submitted' for file={}: {:?}", ext_item.filename, uploaded.processing_state);
@@ -174,7 +201,29 @@ pub fn synchronise(config: &SynchroniseConfig) -> Result<(), String> {
             ));
         }
     }
-    // println!("[SYNC] Synchronise pipeline succeeded.");
-    // Ok(())
+
+    // Report includes actual uploaded IDs and names
+    let sources_report = vec![
+        ExternalSourceReport {
+            source_id: ext_source.external_source_id as i64,
+            source_name: ext_source.external_source_name.clone(),
+            items: uploaded_items_report,
+        }
+    ];
+
+    Ok(SynchroniseReport { sources: sources_report })
+}
+
+/// Removes all sources in the bucket using the given client. Public async API.
+pub async fn empty_bucket<C>(client: &C) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
+where
+    C: crate::upload::Uploader,
+{
+    let sources = client.list_sources().await?;
+    let deletions = sources
+        .into_iter()
+        .map(|src| client.delete_source_by_id(src.external_source_id));
+    // Try to delete all sources (fail fast)
+    try_join_all(deletions).await?;
     Ok(())
 }
