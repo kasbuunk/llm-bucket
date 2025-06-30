@@ -36,10 +36,65 @@ fn sync_cli_happy_flow_succeeds_with_valid_config_and_env() {
 
     // This requires a running API/config, or development dummy/test tenant.
     // To ensure non-disruptive test, only assert overall success and summary output.
+    // Should finish successfully and print a high-level summary or banner.
     // The assertion should NOT require a precise output match as it may vary.
 
-    // Should finish successfully and print a high-level summary or banner.
+    // Assert on both the previous high-level output, and presence of an "exit" trace marker.
     cmd.assert()
         .success()
-        .stdout(predicate::str::contains("Synchronise").or(predicate::str::contains("success")).or(predicate::str::contains("report")));
+        .stdout(
+            predicate::str::contains("Synchronise")
+                .or(predicate::str::contains("success"))
+                .or(predicate::str::contains("report"))
+                .or(predicate::str::contains("exit")) // NEW: trace event
+        );
+}
+
+use std::sync::{Arc, Mutex};
+use tracing_subscriber::{layer::Context, Layer, Registry};
+use tracing_subscriber::prelude::*; // needed for .with()
+
+/// Custom Layer to collect emitted event messages.
+struct EventCollector {
+    events: Arc<Mutex<Vec<String>>>,
+}
+
+impl<S> Layer<S> for EventCollector
+where
+    S: tracing::Subscriber,
+{
+    fn on_event(&self, event: &tracing::Event<'_>, _ctx: Context<'_, S>) {
+        use tracing_subscriber::fmt::format::{FmtSpan, Writer};
+        use std::fmt::Write as FmtWrite;
+        let mut msg = String::new();
+        let _ = write!(&mut msg, "{:?}", event);
+        self.events.lock().unwrap().push(msg);
+    }
+}
+
+#[tokio::test]
+async fn emits_trace_initialised_event() {
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let collector = EventCollector { events: events.clone() };
+    let subscriber = Registry::default().with(collector);
+    let _guard = tracing::subscriber::set_default(subscriber);
+
+    // Import run, Cli, and Commands directly from crate root.
+    use llm_bucket::{run, Cli, Commands};
+
+    // Provide minimum config for the Sync subcommand (using a dummy path).
+    let cli = Cli {
+        command: Commands::Sync {
+            config: std::path::PathBuf::from("dummy.yaml"),
+        }
+    };
+
+    let _ = run(cli).await;
+
+    let event_msgs = events.lock().unwrap();
+    assert!(
+        event_msgs.iter().any(|msg| msg.contains("trace_initialised")),
+        "Expected a 'trace_initialised' trace event, got: {:?}",
+        event_msgs
+    );
 }

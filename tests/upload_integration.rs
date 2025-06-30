@@ -1,5 +1,6 @@
 use llm_bucket::upload::{NewExternalSource, Uploader};
 use openapi::models::ProcessingState;
+use serial_test::serial;
 use uuid::Uuid;
 
 #[tokio::test]
@@ -30,7 +31,10 @@ async fn test_create_external_source_succeeds() {
 
     // Cleanup: delete the created source
     assert!(
-        client.delete_source_by_id(ext_source.external_source_id).await.is_ok(),
+        client
+            .delete_source_by_id(ext_source.external_source_id)
+            .await
+            .is_ok(),
         "Cleanup: created source should be deleted successfully"
     );
 }
@@ -73,18 +77,26 @@ async fn test_create_external_item_succeeds() {
     let external_item_id = item_result.external_item_id as i64;
 
     assert!(
-        item_result.processing_state.eq_ignore_ascii_case("submitted"),
+        item_result
+            .processing_state
+            .eq_ignore_ascii_case("submitted"),
         "Expected processing_state to be case-insensitively 'submitted', got: {}",
         item_result.processing_state
     );
 
     // Cleanup: delete the created item and source
     assert!(
-        client.delete_item_by_id(external_source_id, external_item_id).await.is_ok(),
+        client
+            .delete_item_by_id(external_source_id, external_item_id)
+            .await
+            .is_ok(),
         "Cleanup: created external item should be deleted successfully"
     );
     assert!(
-        client.delete_source_by_id(external_source_id as i32).await.is_ok(),
+        client
+            .delete_source_by_id(external_source_id as i32)
+            .await
+            .is_ok(),
         "Cleanup: created source should be deleted successfully"
     );
 }
@@ -115,7 +127,10 @@ async fn test_delete_external_source_by_id_succeeds() {
         .await;
 
     // Assert: deletion API should succeed (any success Ok result is fine)
-    assert!(deleted.is_ok(), "Deleting external source should return Ok(())");
+    assert!(
+        deleted.is_ok(),
+        "Deleting external source should return Ok(())"
+    );
 }
 
 #[tokio::test]
@@ -145,13 +160,22 @@ async fn test_get_external_source_by_id_succeeds() {
         .expect("Getting source by ID should succeed");
 
     // Assert: the fetched details should match the created one
-    assert_eq!(fetched_source.external_source_id, created_source.external_source_id);
-    assert_eq!(fetched_source.external_source_name, created_source.external_source_name);
+    assert_eq!(
+        fetched_source.external_source_id,
+        created_source.external_source_id
+    );
+    assert_eq!(
+        fetched_source.external_source_name,
+        created_source.external_source_name
+    );
     assert_eq!(fetched_source.bucket_id, created_source.bucket_id);
 
     // Cleanup: delete the created source
     assert!(
-        client.delete_source_by_id(created_source.external_source_id).await.is_ok(),
+        client
+            .delete_source_by_id(created_source.external_source_id)
+            .await
+            .is_ok(),
         "Cleanup: created source should be deleted successfully"
     );
 }
@@ -170,17 +194,26 @@ async fn test_list_external_sources_succeeds() {
     let name1 = format!("List Test Source 1 {}", Uuid::new_v4());
     let name2 = format!("List Test Source 2 {}", Uuid::new_v4());
 
-    let source1 = client.create_source(llm_bucket::upload::NewExternalSource {
-        name: &name1,
-        bucket_id,
-    }).await.expect("Create source 1 failed");
-    let source2 = client.create_source(llm_bucket::upload::NewExternalSource {
-        name: &name2,
-        bucket_id,
-    }).await.expect("Create source 2 failed");
+    let source1 = client
+        .create_source(llm_bucket::upload::NewExternalSource {
+            name: &name1,
+            bucket_id,
+        })
+        .await
+        .expect("Create source 1 failed");
+    let source2 = client
+        .create_source(llm_bucket::upload::NewExternalSource {
+            name: &name2,
+            bucket_id,
+        })
+        .await
+        .expect("Create source 2 failed");
 
     // Act: list all sources (to be implemented)
-    let sources = client.list_sources().await.expect("List sources should succeed");
+    let sources = client
+        .list_sources()
+        .await
+        .expect("List sources should succeed");
 
     // Assert: both sources must appear in the list
     let names: Vec<_> = sources.iter().map(|s| &s.external_source_name).collect();
@@ -189,16 +222,23 @@ async fn test_list_external_sources_succeeds() {
 
     // Cleanup: delete both sources
     assert!(
-        client.delete_source_by_id(source1.external_source_id).await.is_ok(),
+        client
+            .delete_source_by_id(source1.external_source_id)
+            .await
+            .is_ok(),
         "Cleanup: source1 should be deleted successfully"
     );
     assert!(
-        client.delete_source_by_id(source2.external_source_id).await.is_ok(),
+        client
+            .delete_source_by_id(source2.external_source_id)
+            .await
+            .is_ok(),
         "Cleanup: source2 should be deleted successfully"
     );
 }
 
 #[tokio::test]
+#[serial]
 async fn test_empty_bucket_removes_all_sources() {
     let client = llm_bucket::upload::LLMClient::new_from_env()
         .expect("Failed to create client from .env settings");
@@ -208,15 +248,21 @@ async fn test_empty_bucket_removes_all_sources() {
         .expect("BUCKET_ID must be i32");
 
     // Arrange: create two sources to ensure there are sources to remove
-    let _ = client.create_source(llm_bucket::upload::NewExternalSource {
-        name: &format!("Empty Test Source 1 {}", uuid::Uuid::new_v4()),
-        bucket_id,
-    }).await.expect("Create source 1 failed");
+    let _ = client
+        .create_source(llm_bucket::upload::NewExternalSource {
+            name: &format!("Empty Test Source 1 {}", uuid::Uuid::new_v4()),
+            bucket_id,
+        })
+        .await
+        .expect("Create source 1 failed");
 
-    let _ = client.create_source(llm_bucket::upload::NewExternalSource {
-        name: &format!("Empty Test Source 2 {}", uuid::Uuid::new_v4()),
-        bucket_id,
-    }).await.expect("Create source 2 failed");
+    let _ = client
+        .create_source(llm_bucket::upload::NewExternalSource {
+            name: &format!("Empty Test Source 2 {}", uuid::Uuid::new_v4()),
+            bucket_id,
+        })
+        .await
+        .expect("Create source 2 failed");
 
     // Act & Assert: manual test of deletion API may be placed here, or just remove this test if unneeded.
 }
@@ -262,5 +308,8 @@ async fn test_delete_external_item_by_id_succeeds() {
         .await;
 
     // Assert: deletion API should succeed (Ok(()))
-    assert!(deleted.is_ok(), "Deleting external item should return Ok(())");
+    assert!(
+        deleted.is_ok(),
+        "Deleting external item should return Ok(())"
+    );
 }
