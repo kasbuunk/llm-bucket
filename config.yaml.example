@@ -1,0 +1,24 @@
+# config.yaml.example
+# Example configuration for llm-bucket sync CLI
+# Copy this file to `config.yaml`, fill in your real values, and keep the real config.yaml out of git!
+#
+# NOTE: Never commit secrets or production values.
+
+download:
+  output_dir: ./tmp/exports                  # Directory where source(s) will be checked out & processed
+  sources:
+    - type: git
+      repo_url: "https://github.com/org/project.git" # Replace with your repo URL
+      reference: main                        # (optional) branch, tag, or commit. Use "main" if unsure.
+
+process:
+  kind: FlattenFiles                         # "FlattenFiles" or "ReadmeToPDF" (see README for other modes)
+
+upload:
+  bucket_id: 123                             # Not used by CLI, actual value loaded from BUCKET_ID env var
+  api_key: "not-used"                        # Not used by CLI, actual value loaded from OCP_APIM_SUBSCRIPTION_KEY env var
+
+# To use:
+#   cp config.yaml.example config.yaml
+#   Edit config.yaml as needed.
+#   Add "config.yaml" to your .gitignore!

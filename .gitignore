@@ -2,7 +2,8 @@
 /output/
 /target
 /test_output/
-.env
+/.env
+config.yaml
 
 # Ignore confidential OpenAPI schema and generated client
 /openapi-client/schema-openapi.yaml
