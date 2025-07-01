@@ -104,7 +104,7 @@ pub async fn synchronise(config: &SynchroniseConfig) -> Result<SynchroniseReport
                 }),
             }],
         };
-        match crate::download::run(&dl_config) {
+        match crate::download::run(&dl_config).await {
             Ok(_) => {
                 info!(source = ?source, "[SYNC] Download succeeded");
             },

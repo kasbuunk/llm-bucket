@@ -11,12 +11,12 @@ struct TestCase {
     expected_dirs: Vec<String>,
 }
 
-#[test]
-fn test_download_populates_directory_table_driven() {
+#[tokio::test]
+async fn test_download_populates_directory_table_driven() {
     // Test values for 'llm-bucket'
     let repo_url = "https://github.com/kasbuunk/llm-bucket";
     let reference = "main";
-    let output_dir = "test_output";
+    let output_dir = "./tmp/test_output";
     let expected_subdir_llm = format!(
         "git_{}_{}",
         repo_url,
@@ -127,7 +127,7 @@ fn test_download_populates_directory_table_driven() {
         // Always clean output dir before running each case for isolation
         let _ = std::fs::remove_dir_all(output_dir);
 
-        let result = llm_bucket::download::run(&tc.config);
+        let result = llm_bucket::download::run(&tc.config).await;
         assert!(result.is_ok(), "{}: download::run() should succeed", tc.name);
 
         // Assert all expected directories exist and are not empty
@@ -151,15 +151,15 @@ fn test_download_populates_directory_table_driven() {
     }
 }
 
-#[test]
-fn test_download_empty_sources_no_error() {
-    let output_dir = "test_output_empty_sources";
+#[tokio::test]
+async fn test_download_empty_sources_no_error() {
+    let output_dir = "./tmp/test_output_empty_sources";
     let _ = std::fs::remove_dir_all(output_dir);
     let config = Config {
         output_dir: output_dir.into(),
         sources: vec![],
     };
 
-    let result = llm_bucket::download::run(&config);
+    let result = llm_bucket::download::run(&config).await;
     assert!(result.is_ok(), "download::run() should succeed with empty sources");
 }
