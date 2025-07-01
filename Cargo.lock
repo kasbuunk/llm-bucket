@@ -1529,6 +1529,7 @@ dependencies = [
  "openapi",
  "predicates",
  "printpdf",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",

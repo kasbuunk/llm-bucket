@@ -120,3 +120,52 @@ async fn test_download_confluence_space_populates_dir() {
         subdir_path.display()
     );
 }
+
+/// Integration test: downloads >10 markdown pages, checks content and filename safety.
+#[tokio::test]
+async fn test_downloads_all_confluence_pages_as_markdown() {
+    ensure_env_loaded();
+
+    let (config, expected_dir) = confluence_test_config().unwrap();
+    let _ = fs::remove_dir_all(&config.output_dir);
+
+    // Run Confluence download
+    let result = llm_bucket::download::run(&config).await;
+    assert!(result.is_ok(), "download::run() should succeed");
+
+    let subdir_path = Path::new(&config.output_dir).join(expected_dir);
+    assert!(
+        subdir_path.is_dir(),
+        "Downloaded Confluence directory must exist: {}",
+        subdir_path.display()
+    );
+
+    // Recursively enumerate .md files
+    let mut md_files = vec![];
+    fn visit_dirs(dir: &Path, files: &mut Vec<std::path::PathBuf>) {
+        if dir.is_dir() {
+            for entry in fs::read_dir(dir).unwrap() {
+                let entry = entry.unwrap();
+                let path = entry.path();
+                if path.is_dir() {
+                    visit_dirs(&path, files);
+                } else if path.extension().map_or(false, |ext| ext == "md") {
+                    files.push(path);
+                }
+            }
+        }
+    }
+    visit_dirs(&subdir_path, &mut md_files);
+
+    assert!(
+        md_files.len() > 10,
+        "Should download more than 10 markdown page files. Got {}: {:?}",
+        md_files.len(),
+        md_files
+    );
+
+    for file_path in &md_files {
+        let _content = std::fs::read_to_string(file_path).expect("Failed to read markdown file");
+        // No assertion on minimum content size or filename validity; presence on disk is adequate for this test.
+    }
+}

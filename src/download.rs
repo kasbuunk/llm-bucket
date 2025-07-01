@@ -214,6 +214,132 @@ pub async fn run(config: &crate::config::Config) -> Result<(), ()> {
                             ()
                         })?;
                         info!(path = %space_json_path.display(), "Downloaded Confluence space.json");
+
+                        // === Fetch all pages for the space as markdown ===
+
+                        // Helper function to convert path components to sanitized double-underscore separated file path
+                        fn sanitize_to_fs_safe(parts: &[&str]) -> String {
+                            let mut name = parts
+                                .iter()
+                                .map(|s| {
+                                    let s = s.replace(&['/', '\\', ':', '*', '?', '"', '<', '>', '|'][..], "_");
+                                    let s = s.replace(std::path::MAIN_SEPARATOR, "_");
+                                    let s = s.replace("__", "_");
+                                    s
+                                })
+                                .collect::<Vec<_>>()
+                                .join("__");
+                            // Remove leading/trailing/empty segments
+                            while name.starts_with('_') || name.starts_with('.') {
+                                name = name[1..].to_string();
+                            }
+                            while name.ends_with('_') || name.ends_with('.') {
+                                name.pop();
+                            }
+                            name
+                        }
+
+                        // Get all pages in the space using pagination
+                        let mut start = 0;
+                        let limit = 100;
+                        let mut pages = Vec::new();
+                        'fetch_pages: loop {
+                            let content_url = format!(
+                                "{}/rest/api/content?spaceKey={}&limit={}&start={}&expand=title,body.storage,ancestors",
+                                base_url, space_key, limit, start
+                            );
+                            let resp = client
+                                .get(&content_url)
+                                .basic_auth(email.clone(), Some(token.clone()))
+                                .send()
+                                .await;
+
+                            let resp = match resp {
+                                Ok(r) => r,
+                                Err(e) => {
+                                    error!(error = ?e, url = %content_url, "Failed to fetch Confluence pages");
+                                    break 'fetch_pages;
+                                }
+                            };
+                            let status = resp.status();
+                            let json_val = match resp.json::<serde_json::Value>().await {
+                                Ok(val) => val,
+                                Err(e) => {
+                                    error!(error = ?e, url = %content_url, "Failed to parse Confluence pages JSON");
+                                    break 'fetch_pages;
+                                }
+                            };
+                            if !status.is_success() {
+                                error!(status = %status, url = %content_url, "Confluence API returned error for pages");
+                                break 'fetch_pages;
+                            }
+
+                            // Expect pages in "results" array and metadata in "_links" (possibly "next" link)
+                            let results = json_val.get("results").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+                            let size = results.len();
+                            pages.extend(results);
+
+                            if size < limit {
+                                // last page
+                                break 'fetch_pages;
+                            }
+                            start += limit;
+                        }
+
+                        // Directory creation & writing markdown files
+                        for page in pages {
+                            let title = page.get("title").and_then(|v| v.as_str()).unwrap_or("untitled");
+                            let body_md = page
+                                .get("body")
+                                .and_then(|b| b.get("storage"))
+                                .and_then(|s| s.get("value"))
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("");
+
+                            // Get the ancestor titles for hierarchy
+                            let mut hierarchy: Vec<&str> = Vec::new();
+                            if let Some(ancestors) = page.get("ancestors").and_then(|v| v.as_array()) {
+                                for anc in ancestors {
+                                    if let Some(t) = anc.get("title").and_then(|t| t.as_str()) {
+                                        hierarchy.push(t);
+                                    }
+                                }
+                            }
+                            hierarchy.push(title);
+                            let file_stem = sanitize_to_fs_safe(&hierarchy);
+
+                            // Final file path (no subdirectories, just double underscore separated)
+                            let out_file_path = full_source_path.join(format!("{}.md", file_stem));
+
+                            // Confluence storage format is HTML, convert minimally to markdown-like (strip tags naively)
+                            fn html_to_markdown_minimal(html: &str) -> String {
+                                // This is only minimal: replace headings, paragraphs, remove *most* html tags.
+                                // For a proper solution, use a crate (html2md or ammonia, etc.), but here is quick & dirty:
+                                let mut md = String::from(html);
+                                for i in (1..=6).rev() {
+                                    md = md.replace(&format!("<h{i}>"), &format!("\n{} ", "#".repeat(i)));
+                                    md = md.replace(&format!("</h{i}>"), "\n");
+                                }
+                                md = md.replace("<p>", "\n\n").replace("</p>", "\n");
+                                md = md.replace("<br>", "\n").replace("<br/>", "\n");
+                                md = md.replace("<ul>", "\n").replace("</ul>", "\n");
+                                md = md.replace("<ol>", "\n").replace("</ol>", "\n");
+                                md = md.replace("<li>", "- ").replace("</li>", "\n");
+                                // Strip remaining tags (very naive, does not handle everything)
+                                md = regex::Regex::new(r"<[^>]+>")
+                                    .unwrap()
+                                    .replace_all(&md, "")
+                                    .to_string();
+                                md
+                            }
+                            let markdown = html_to_markdown_minimal(body_md);
+
+                            // Write the markdown file
+                            if let Err(e) = std::fs::write(&out_file_path, markdown) {
+                                error!(error = ?e, path = %out_file_path.display(), "Failed to write Confluence page markdown");
+                            }
+                        }
+
                         continue;
                     }
                     Err(e) => {
