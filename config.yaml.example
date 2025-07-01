@@ -11,6 +11,10 @@ download:
       repo_url: "git@github.com:kasbuunk/llm-bucket.git" # Replace with your repo URL
       reference: main                        # (optional) branch, tag, or commit. Use "main" if unsure.
 
+    - type: confluence
+      base_url: "https://yourcompany.atlassian.net/wiki" # Replace with your Confluence base URL
+      space_key: "MKTG"                                 # Replace with your target space key
+
 process:
   kind: FlattenFiles                         # "FlattenFiles" or "ReadmeToPDF" (see README for other modes)
 
