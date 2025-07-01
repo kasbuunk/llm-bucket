@@ -28,7 +28,12 @@ enum SourceActionYaml {
         #[serde(default)]
         reference: Option<String>,
     },
-    // Future: confluence, slack, etc.
+    #[serde(rename = "confluence")]
+    Confluence {
+        base_url: String,
+        space_key: String,
+        // Can be extended with more optional fields
+    },
 }
 
 #[derive(Deserialize)]
@@ -95,6 +100,10 @@ pub fn load_config<P: AsRef<Path>>(path: P) -> Result<SynchroniseConfig> {
             SourceActionYaml::Git { repo_url, reference } => {
                 info!(repo_url = %repo_url, "Parsed git source from config");
                 SourceAction::Git(GitSource { repo_url, reference })
+            }
+            SourceActionYaml::Confluence { base_url, space_key } => {
+                info!(base_url = %base_url, space_key = %space_key, "Parsed confluence source from config");
+                SourceAction::Confluence(crate::synchronise::ConfluenceSource { base_url, space_key })
             }
         }).collect(),
     };

@@ -30,7 +30,15 @@ pub struct DownloadConfig {
 #[derive(Debug, Clone)]
 pub enum SourceAction {
     Git(GitSource),
+    Confluence(ConfluenceSource),
     // Extendable for other source types
+}
+
+#[derive(Debug, Clone)]
+pub struct ConfluenceSource {
+    pub base_url: String,
+    pub space_key: String,
+    // Add more fields as needed (parent_page, filters, etc)
 }
 
 #[derive(Debug, Clone)]
@@ -102,6 +110,7 @@ pub async fn synchronise(config: &SynchroniseConfig) -> Result<SynchroniseReport
                     repo_url: g.repo_url.clone(),
                     reference: g.reference.clone(),
                 }),
+                SourceAction::Confluence(_) => todo!("Confluence sources not supported in this synchronise pipeline yet"),
             }],
         };
         match crate::download::run(&dl_config).await {
@@ -127,6 +136,7 @@ pub async fn synchronise(config: &SynchroniseConfig) -> Result<SynchroniseReport
             let full_path = config.download.output_dir.join(dir_name);
             (git.repo_url.clone(), full_path)
         }
+        SourceAction::Confluence(_) => todo!("Confluence sources not supported in this pipeline yet"),
     };
 
     // Step 2: Process (README to PDF)

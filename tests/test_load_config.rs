@@ -34,6 +34,7 @@ process:
     assert_eq!(config.download.sources.len(), 1);
     let repo = match &config.download.sources[0] {
         llm_bucket::synchronise::SourceAction::Git(g) => g,
+        llm_bucket::synchronise::SourceAction::Confluence(_) => panic!("Unexpected Confluence source in this test"),
     };
     assert_eq!(repo.repo_url, "https://github.com/example/repo.git");
     assert_eq!(repo.reference.as_deref(), Some("main"));
@@ -41,6 +42,56 @@ process:
     // Upload config must come directly from environment
     assert_eq!(config.upload.bucket_id, 1234);
     assert_eq!(config.upload.api_key.as_deref(), Some("top-secret-test-key"));
+}
+
+/// This test ensures both git and confluence sources can be loaded when supported.
+#[tokio::test]
+#[serial]
+async fn test_load_config_with_confluence_source() {
+   let config_yaml = r#"
+download:
+ output_dir: ./tmp/exports
+ sources:
+   - type: git
+     repo_url: "https://github.com/example/repo.git"
+     reference: main
+   - type: confluence
+     base_url: "https://yourcompany.atlassian.net/wiki"
+     space_key: "DOCS"
+process:
+ kind: FlattenFiles
+"#;
+   let config_file = NamedTempFile::new().expect("temp file");
+   write(config_file.path(), config_yaml).unwrap();
+
+   // Provide required env vars so we don't fail early
+   env::set_var("BUCKET_ID", "5678");
+   env::set_var("OCP_APIM_SUBSCRIPTION_KEY", "test-key-2");
+
+   let config = llm_bucket::load_config::load_config(config_file.path())
+       .expect("Config should load with Git and Confluence sources");
+
+   assert_eq!(config.download.output_dir, PathBuf::from("./tmp/exports"));
+   assert_eq!(config.download.sources.len(), 2);
+
+   let mut found_git = false;
+   let mut found_confluence = false;
+   for src in &config.download.sources {
+       match src {
+           llm_bucket::synchronise::SourceAction::Git(g) => {
+               found_git = true;
+               assert_eq!(g.repo_url, "https://github.com/example/repo.git");
+               assert_eq!(g.reference.as_deref(), Some("main"));
+           }
+           llm_bucket::synchronise::SourceAction::Confluence(c) => {
+               found_confluence = true;
+               assert_eq!(c.base_url, "https://yourcompany.atlassian.net/wiki");
+               assert_eq!(c.space_key, "DOCS");
+           }
+       }
+   }
+   assert!(found_git, "Did not find expected Git source");
+   assert!(found_confluence, "Did not find expected Confluence source");
 }
 
 /// This test ensures that missing required env vars makes the loader fail.
