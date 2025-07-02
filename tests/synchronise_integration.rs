@@ -313,6 +313,83 @@ async fn test_synchronise_removes_existing_sources_before_upload() {
     );
 }
 
+/// NEW TEST: End-to-end: two sources (git + confluence) both present in report with non-empty items.
+/// This is red until synchronise supports multiple sources.
+#[tokio::test]
+#[serial]
+async fn test_synchronise_multiple_sources_reports_each_uploaded() {
+    // Load environment (Confluence and Git/Upload credentials expected)
+    dotenv::dotenv().ok();
+
+    // Prepare output dir
+    let temp_out = tempfile::tempdir().unwrap();
+    let output_dir = temp_out.path().to_path_buf();
+
+    // Git source
+    let git_source = SourceAction::Git(GitSource {
+        repo_url: "git@github.com:kasbuunk/llm-bucket.git".to_string(),
+        reference: None,
+    });
+
+    // Confluence source (env settings must exist)
+    let base_url = std::env::var("CONFLUENCE_BASE_URL").expect("CONFLUENCE_BASE_URL must be set");
+    let space_key = std::env::var("CONFLUENCE_SPACE_KEY").expect("CONFLUENCE_SPACE_KEY must be set");
+    // Limit page count for speed
+    std::env::set_var("CONFLUENCE_PAGE_LIMIT", "2");
+
+    let confluence_source = SourceAction::Confluence(llm_bucket::synchronise::ConfluenceSource {
+        base_url,
+        space_key,
+    });
+
+    // Process config
+    let process = ProcessConfig {
+        kind: ProcessorKind::FlattenFiles,
+    };
+
+    // Upload config (credentials mandatory)
+    let api_key = std::env::var("OCP_APIM_SUBSCRIPTION_KEY")
+        .expect("OCP_APIM_SUBSCRIPTION_KEY must be set for integration test");
+    let bucket_id = std::env::var("BUCKET_ID")
+        .expect("BUCKET_ID must be set for integration test")
+        .parse::<i64>()
+        .expect("BUCKET_ID must be an integer");
+
+    let upload = UploadConfig {
+        bucket_id,
+        api_key: Some(api_key),
+    };
+
+    // Synchronise config with both sources
+    let config = SynchroniseConfig {
+        download: DownloadConfig {
+            output_dir,
+            sources: vec![git_source, confluence_source],
+        },
+        process,
+        upload,
+    };
+
+    // Run pipeline
+    let result = synchronise(&config).await;
+    assert!(result.is_ok(), "Synchronise should succeed for mixed sources");
+    let report = result.expect("Synchronise should return a report");
+
+    // Main assertion: both sources present and each has at least one item
+    assert_eq!(
+        report.sources.len(),
+        2,
+        "Should report one result for each input source (git + confluence)"
+    );
+    for (idx, src) in report.sources.iter().enumerate() {
+        assert!(
+            !src.items.is_empty(),
+            "Source at index {} ({}) should have at least one item",
+            idx, src.source_name
+        );
+    }
+}
+
 #[tokio::test]
 #[serial]
 async fn test_synchronise_flattenfiles_uploads_codebase_files() {

@@ -100,8 +100,11 @@ pub async fn synchronise(config: &SynchroniseConfig) -> Result<SynchroniseReport
     }
     info!("[SYNC] Emptied bucket before sync");
 
-    // Step 1: Download
+    // Step 1-3: For each source, download, process, and upload; accumulate reports.
+    let mut sources_report: Vec<ExternalSourceReport> = Vec::new();
+
     for source in &config.download.sources {
+        // --- Step 1: Download ---
         info!(source = ?source, "[SYNC] Starting download for source");
         let dl_config = crate::config::Config {
             output_dir: config.download.output_dir.clone(),
@@ -125,124 +128,111 @@ pub async fn synchronise(config: &SynchroniseConfig) -> Result<SynchroniseReport
                 return Err(format!("Download failed for {:?}: {:?}", source, e));
             }
         }
-    }
 
-    // For now, only handle singleton list of one repo/source
-    let source = config.download.sources.get(0).ok_or("No sources specified")?;
-    let (name, local_path) = match source {
-        SourceAction::Git(git) => {
-            // Reconstruct actual cloned directory name logic from download/run
-            let reference = git.reference.as_deref().unwrap_or("main");
-            let dir_name = format!("git_{}_{}", git.repo_url, reference)
+        // --- Step 2: Construct the source-specific processing input ---
+        let (name, local_path) = match source {
+            SourceAction::Git(git) => {
+                let reference = git.reference.as_deref().unwrap_or("main");
+                let dir_name = format!("git_{}_{}", git.repo_url, reference)
+                    .replace('/', "_")
+                    .replace(':', "_");
+                let full_path = config.download.output_dir.join(dir_name);
+                (git.repo_url.clone(), full_path)
+            }
+            SourceAction::Confluence(confluence) => {
+                let dir_name = format!(
+                    "confluence_{}_{}",
+                    confluence.base_url, confluence.space_key
+                )
                 .replace('/', "_")
                 .replace(':', "_");
-            let full_path = config.download.output_dir.join(dir_name);
-            (git.repo_url.clone(), full_path)
-        }
-        SourceAction::Confluence(confluence) => {
-            // Reconstruct the expected directory name for Confluence export, following download/run logic
-            let dir_name = format!(
-                "confluence_{}_{}",
-                confluence.base_url, confluence.space_key
-            )
-            .replace('/', "_")
-            .replace(':', "_");
-            let full_path = config.download.output_dir.join(dir_name);
-            (format!("{}:{}", confluence.base_url, confluence.space_key), full_path)
-        }
-    };
+                let full_path = config.download.output_dir.join(dir_name);
+                (format!("{}:{}", confluence.base_url, confluence.space_key), full_path)
+            }
+        };
 
-    // Step 2: Process (README to PDF)
-    let process_input = ProcessInput {
-        name: name.clone(),
-        repo_path: local_path,
-    };
-    info!(repo_name = %name, "[SYNC] Invoking processing step (process README to PDF)");
-    let source_for_upload = match preprocess::process(&config.process, process_input) {
-        Ok(src) => {
-            info!(items = src.external_items.len(), "[SYNC] Processing succeeded");
-            src
-        },
-        Err(e) => {
-            error!(error = ?e, "[SYNC][ERROR] Process step failed");
-            return Err(format!("Process step failed: {:?}", e));
-        }
-    };
-
-    // Step 3: Upload
-    // Uploader already constructed above
-
-    // Create new external source
-    let new_source = crate::upload::NewExternalSource {
-        name: &source_for_upload.name,
-        bucket_id: config.upload.bucket_id as i32,
-    };
-
-    info!(source_name = %source_for_upload.name, "[SYNC][UPLOAD] Creating new external source");
-    let ext_source =
-        match uploader.create_source(new_source).await {
+        let process_input = ProcessInput {
+            name: name.clone(),
+            repo_path: local_path,
+        };
+        info!(repo_name = %name, "[SYNC] Invoking processing step (process README to PDF)");
+        let source_for_upload = match preprocess::process(&config.process, process_input) {
             Ok(src) => {
-                info!(external_source_id = src.external_source_id, "[SYNC][UPLOAD] create_source succeeded");
+                info!(items = src.external_items.len(), "[SYNC] Processing succeeded");
                 src
-            }
+            },
             Err(e) => {
-                error!(error = ?e, "[SYNC][ERROR][UPLOAD] create_source (external source) failed");
-                return Err(format!("[UPLOAD fail @ create_source]: {e:?}"));
+                error!(error = ?e, "[SYNC][ERROR] Process step failed");
+                return Err(format!("Process step failed: {:?}", e));
             }
         };
 
-    // For accumulating upload responses
-    let mut uploaded_items_report: Vec<ExternalItemReport> = Vec::new();
-
-    // Upload all items, and record their IDs/names from upload responses
-    for ext_item in &source_for_upload.external_items {
-        info!(filename = %ext_item.filename, "[SYNC][UPLOAD] Preparing upload for file");
-        let content = String::from_utf8_lossy(&ext_item.content);
-        let item_req = crate::upload::NewExternalItem {
-            content: &content, // Re-upload as UTF-8 text (for test, but might need to change to raw binary for real PDF upload)
-            url: &ext_item.filename, // Use the file name as URL for now
-            bucket_id: config.upload.bucket_id as i64,
-            external_source_id: ext_source.external_source_id as i64,
-            processing_state: None,
+        // --- Step 3: Upload ---
+        let new_source = crate::upload::NewExternalSource {
+            name: &source_for_upload.name,
+            bucket_id: config.upload.bucket_id as i32,
         };
-        let uploaded = match uploader.create_item(item_req).await {
-            Ok(resp) => {
-                info!(file = %ext_item.filename, state = %resp.processing_state, "[SYNC][UPLOAD] create_item succeeded");
-                // Print full struct as JSON for debug
-                match serde_json::to_string_pretty(&resp) {
-                    Ok(json) => debug!(json = %json, file = %ext_item.filename, "[SYNC][UPLOAD][DEBUG] Uploaded ExternalItem as JSON"),
-                    Err(e) => error!(file = %ext_item.filename, error = ?e, "[SYNC][UPLOAD][DEBUG] Failed to serialize ExternalItem as JSON"),
+
+        info!(source_name = %source_for_upload.name, "[SYNC][UPLOAD] Creating new external source");
+        let ext_source =
+            match uploader.create_source(new_source).await {
+                Ok(src) => {
+                    info!(external_source_id = src.external_source_id, "[SYNC][UPLOAD] create_source succeeded");
+                    src
                 }
-                // Add the ID and name to the report immediately
-                uploaded_items_report.push(ExternalItemReport {
-                    item_id: resp.external_item_id as i64,
-                    item_name: ext_item.filename.clone(),
-                });
-                resp
-            }
-            Err(e) => {
-                error!(file = %ext_item.filename, error = ?e, "[SYNC][ERROR][UPLOAD] create_item (external item) failed");
-                return Err(format!("[UPLOAD fail @ create_item for file={}]: {e:?}", ext_item.filename));
-            }
-        };
+                Err(e) => {
+                    error!(error = ?e, "[SYNC][ERROR][UPLOAD] create_source (external source) failed");
+                    return Err(format!("[UPLOAD fail @ create_source]: {e:?}"));
+                }
+            };
 
-        if uploaded.processing_state != "Submitted" {
-            error!(file = %ext_item.filename, state = %uploaded.processing_state, "[SYNC][ERROR][UPLOAD] Uploaded item's processing_state was not 'Submitted'");
-            return Err(format!(
-                "[UPLOAD fail @ create_item post-state: file={}] Uploaded item's processing_state was not 'Submitted': {:?}",
-                ext_item.filename, uploaded.processing_state
-            ));
+        let mut uploaded_items_report: Vec<ExternalItemReport> = Vec::new();
+
+        // Upload all items, and record their IDs/names from upload responses
+        for ext_item in &source_for_upload.external_items {
+            info!(filename = %ext_item.filename, "[SYNC][UPLOAD] Preparing upload for file");
+            let content = String::from_utf8_lossy(&ext_item.content);
+            let item_req = crate::upload::NewExternalItem {
+                content: &content, // Re-upload as UTF-8 text (for test, but might need to change to raw binary for real PDF upload)
+                url: &ext_item.filename, // Use the file name as URL for now
+                bucket_id: config.upload.bucket_id as i64,
+                external_source_id: ext_source.external_source_id as i64,
+                processing_state: None,
+            };
+            let uploaded = match uploader.create_item(item_req).await {
+                Ok(resp) => {
+                    info!(file = %ext_item.filename, state = %resp.processing_state, "[SYNC][UPLOAD] create_item succeeded");
+                    match serde_json::to_string_pretty(&resp) {
+                        Ok(json) => debug!(json = %json, file = %ext_item.filename, "[SYNC][UPLOAD][DEBUG] Uploaded ExternalItem as JSON"),
+                        Err(e) => error!(file = %ext_item.filename, error = ?e, "[SYNC][UPLOAD][DEBUG] Failed to serialize ExternalItem as JSON"),
+                    }
+                    uploaded_items_report.push(ExternalItemReport {
+                        item_id: resp.external_item_id as i64,
+                        item_name: ext_item.filename.clone(),
+                    });
+                    resp
+                }
+                Err(e) => {
+                    error!(file = %ext_item.filename, error = ?e, "[SYNC][ERROR][UPLOAD] create_item (external item) failed");
+                    return Err(format!("[UPLOAD fail @ create_item for file={}]: {e:?}", ext_item.filename));
+                }
+            };
+
+            if uploaded.processing_state != "Submitted" {
+                error!(file = %ext_item.filename, state = %uploaded.processing_state, "[SYNC][ERROR][UPLOAD] Uploaded item's processing_state was not 'Submitted'");
+                return Err(format!(
+                    "[UPLOAD fail @ create_item post-state: file={}] Uploaded item's processing_state was not 'Submitted': {:?}",
+                    ext_item.filename, uploaded.processing_state
+                ));
+            }
         }
-    }
 
-    // Report includes actual uploaded IDs and names
-    let sources_report = vec![
-        ExternalSourceReport {
+        sources_report.push(ExternalSourceReport {
             source_id: ext_source.external_source_id as i64,
             source_name: ext_source.external_source_name.clone(),
             items: uploaded_items_report,
-        }
-    ];
+        });
+    }
 
     Ok(SynchroniseReport { sources: sources_report })
 }
