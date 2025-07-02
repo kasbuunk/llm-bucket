@@ -145,6 +145,90 @@ async fn test_empty_bucket_removes_all_sources() {
 
 #[tokio::test]
 #[serial]
+async fn test_synchronise_confluence_to_pdf_upload() {
+    use llm_bucket::synchronise::ConfluenceSource;
+
+    let temp_out = tempdir().unwrap();
+    let output_dir = temp_out.path().to_path_buf();
+
+    // Ensure environment is loaded so required test vars are available
+    dotenv::dotenv().ok();
+
+    // Configure test confluence space and base URL from env (must be set for this test!)
+    let base_url = std::env::var("CONFLUENCE_BASE_URL")
+        .expect("CONFLUENCE_BASE_URL env var must be set for integration test");
+    let space_key = std::env::var("CONFLUENCE_SPACE_KEY")
+        .expect("CONFLUENCE_SPACE_KEY env var must be set for integration test");
+
+    let download = DownloadConfig {
+        output_dir: output_dir.clone(),
+        sources: vec![
+            SourceAction::Confluence(ConfluenceSource {
+                base_url,
+                space_key,
+            }),
+        ],
+    };
+
+    let process = ProcessConfig {
+        kind: ProcessorKind::FlattenFiles,
+    };
+
+    dotenv::dotenv().ok();
+
+    let api_key = std::env::var("OCP_APIM_SUBSCRIPTION_KEY")
+        .expect("OCP_APIM_SUBSCRIPTION_KEY env var must be set for integration test");
+    let bucket_id = std::env::var("BUCKET_ID")
+        .expect("BUCKET_ID env var must be set for integration test")
+        .parse::<i64>()
+        .expect("BUCKET_ID must be an integer");
+
+    let upload = UploadConfig {
+        bucket_id,
+        api_key: Some(api_key),
+    };
+
+    let config = SynchroniseConfig {
+        download,
+        process,
+        upload,
+    };
+
+    // Run the synchronisation pipeline.
+    let res = synchronise(&config).await;
+    assert!(
+        res.is_ok(),
+        "Synchronise should succeed for Confluence source in ReadmeToPDF mode"
+    );
+    let report = res.expect("Synchronise should return a report");
+
+    // Check that at least one source and item are present, similar to Git test
+    assert!(
+        !report.sources.is_empty(),
+        "At least one source should be reported for Confluence"
+    );
+    for src in &report.sources {
+        assert!(
+            !src.items.is_empty(),
+            "Each source should have at least one item (Confluence)"
+        );
+        assert!(src.source_id > 0, "Source id should be positive (Confluence)");
+        assert!(
+            !src.source_name.is_empty(),
+            "Source name should not be empty (Confluence)"
+        );
+        for item in &src.items {
+            assert!(item.item_id > 0, "Item id should be positive (Confluence)");
+            assert!(
+                !item.item_name.is_empty(),
+                "Item name should not be empty (Confluence)"
+            );
+        }
+    }
+}
+
+#[tokio::test]
+#[serial]
 async fn test_synchronise_removes_existing_sources_before_upload() {
     use llm_bucket::upload::{LLMClient, NewExternalSource};
 

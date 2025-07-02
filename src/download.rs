@@ -241,12 +241,17 @@ pub async fn run(config: &crate::config::Config) -> Result<(), ()> {
 
                         // Get all pages in the space using pagination
                         let mut start = 0;
-                        let limit = 100;
+                        // Use env var for CONFLUENCE_PAGE_LIMIT or default to 15
+                        // Only use the limit for requests, not for total collection, unless env is set
+                        let page_limit = std::env::var("CONFLUENCE_PAGE_LIMIT")
+                            .ok()
+                            .and_then(|v| v.parse::<usize>().ok());
+                        let api_batch_limit = 100;
                         let mut pages = Vec::new();
                         'fetch_pages: loop {
                             let content_url = format!(
                                 "{}/rest/api/content?spaceKey={}&limit={}&start={}&expand=title,body.storage,ancestors",
-                                base_url, space_key, limit, start
+                                base_url, space_key, api_batch_limit, start
                             );
                             let resp = client
                                 .get(&content_url)
@@ -277,13 +282,38 @@ pub async fn run(config: &crate::config::Config) -> Result<(), ()> {
                             // Expect pages in "results" array and metadata in "_links" (possibly "next" link)
                             let results = json_val.get("results").and_then(|v| v.as_array()).cloned().unwrap_or_default();
                             let size = results.len();
-                            pages.extend(results);
 
-                            if size < limit {
+                            // Push as many as needed (if there's a cap) or all
+                            if let Some(limit) = page_limit {
+                                let remaining = if pages.len() >= limit { 0 } else { limit - pages.len() };
+                                if remaining > 0 {
+                                    // Take up to remaining
+                                    let to_add = results.into_iter().take(remaining).collect::<Vec<_>>();
+                                    pages.extend(to_add);
+                                }
+                                if pages.len() >= limit {
+                                    pages.truncate(limit);
+                                    break 'fetch_pages;
+                                }
+                            } else {
+                                pages.extend(results);
+                            }
+
+                            if size < api_batch_limit {
                                 // last page
                                 break 'fetch_pages;
                             }
-                            start += limit;
+                            start += api_batch_limit;
+                        }
+
+                        // Optionally limit total number of pages after all pages are collected, using CONFLUENCE_PAGE_LIMIT
+                        let page_limit = std::env::var("CONFLUENCE_PAGE_LIMIT")
+                            .ok()
+                            .and_then(|v| v.parse::<usize>().ok());
+                        if let Some(limit) = page_limit {
+                            if pages.len() > limit {
+                                pages.truncate(limit);
+                            }
                         }
 
                         // Directory creation & writing markdown files

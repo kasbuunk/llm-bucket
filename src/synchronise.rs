@@ -110,7 +110,10 @@ pub async fn synchronise(config: &SynchroniseConfig) -> Result<SynchroniseReport
                     repo_url: g.repo_url.clone(),
                     reference: g.reference.clone(),
                 }),
-                SourceAction::Confluence(_) => todo!("Confluence sources not supported in this synchronise pipeline yet"),
+                SourceAction::Confluence(c) => crate::config::SourceAction::Confluence(crate::config::ConfluenceSource {
+                    base_url: c.base_url.clone(),
+                    space_key: c.space_key.clone(),
+                }),
             }],
         };
         match crate::download::run(&dl_config).await {
@@ -136,7 +139,17 @@ pub async fn synchronise(config: &SynchroniseConfig) -> Result<SynchroniseReport
             let full_path = config.download.output_dir.join(dir_name);
             (git.repo_url.clone(), full_path)
         }
-        SourceAction::Confluence(_) => todo!("Confluence sources not supported in this pipeline yet"),
+        SourceAction::Confluence(confluence) => {
+            // Reconstruct the expected directory name for Confluence export, following download/run logic
+            let dir_name = format!(
+                "confluence_{}_{}",
+                confluence.base_url, confluence.space_key
+            )
+            .replace('/', "_")
+            .replace(':', "_");
+            let full_path = config.download.output_dir.join(dir_name);
+            (format!("{}:{}", confluence.base_url, confluence.space_key), full_path)
+        }
     };
 
     // Step 2: Process (README to PDF)

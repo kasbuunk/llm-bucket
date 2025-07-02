@@ -129,6 +129,9 @@ async fn test_downloads_all_confluence_pages_as_markdown() {
     let (config, expected_dir) = confluence_test_config().unwrap();
     let _ = fs::remove_dir_all(&config.output_dir);
 
+    // Set page limit for test speed
+    std::env::set_var("CONFLUENCE_PAGE_LIMIT", "15");
+
     // Run Confluence download
     let result = llm_bucket::download::run(&config).await;
     assert!(result.is_ok(), "download::run() should succeed");
