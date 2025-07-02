@@ -1,7 +1,7 @@
-use std::fs::{File, create_dir_all};
+use llm_bucket::preprocess::{process, ProcessConfig, ProcessInput, ProcessorKind};
+use std::fs::{create_dir_all, File};
 use std::io::Write;
 use tempfile::tempdir;
-use llm_bucket::preprocess::{ProcessConfig, ProcessorKind, ProcessInput, process};
 
 #[test]
 fn test_process_flattenfiles_flattens_recursively_with_double_underscore_separator() {
@@ -34,16 +34,24 @@ fn test_process_flattenfiles_flattens_recursively_with_double_underscore_separat
 
     // Should contain both files, flattened!
     assert_eq!(out_source.external_items.len(), 2);
-    let filenames: Vec<_> = out_source.external_items.iter().map(|i| i.filename.as_str()).collect();
+    let filenames: Vec<_> = out_source
+        .external_items
+        .iter()
+        .map(|i| i.filename.as_str())
+        .collect();
     assert!(filenames.contains(&"root.txt"));
     assert!(filenames.contains(&"src__module__nested.md"));
 
     // Content matches
     for item in &out_source.external_items {
         if item.filename == "root.txt" {
-            assert!(std::str::from_utf8(&item.content).unwrap().contains("hello root"));
+            assert!(std::str::from_utf8(&item.content)
+                .unwrap()
+                .contains("hello root"));
         } else if item.filename == "src__module__nested.md" {
-            assert!(std::str::from_utf8(&item.content).unwrap().contains("hello nested"));
+            assert!(std::str::from_utf8(&item.content)
+                .unwrap()
+                .contains("hello nested"));
         } else {
             panic!("Unexpected filename {}", item.filename);
         }
@@ -52,10 +60,10 @@ fn test_process_flattenfiles_flattens_recursively_with_double_underscore_separat
 
 #[test]
 fn test_flattenfiles_skips_dotgit_and_target_dirs() {
-    use std::fs::{File, create_dir_all};
+    use llm_bucket::preprocess::{process, ProcessConfig, ProcessInput, ProcessorKind};
+    use std::fs::{create_dir_all, File};
     use std::io::Write;
     use tempfile::tempdir;
-    use llm_bucket::preprocess::{ProcessConfig, ProcessorKind, ProcessInput, process};
 
     let tmp = tempdir().unwrap();
     let repo_path = tmp.path();
@@ -98,7 +106,11 @@ fn test_flattenfiles_skips_dotgit_and_target_dirs() {
     };
 
     let out_source = process(&process_config, process_input).expect("Should succeed");
-    let filenames: Vec<_> = out_source.external_items.iter().map(|i| i.filename.as_str()).collect();
+    let filenames: Vec<_> = out_source
+        .external_items
+        .iter()
+        .map(|i| i.filename.as_str())
+        .collect();
 
     // Should only include non-dotgit/non-target files
     assert!(filenames.contains(&"keepme.txt"));
@@ -106,4 +118,54 @@ fn test_flattenfiles_skips_dotgit_and_target_dirs() {
 
     assert!(!filenames.iter().any(|n| n.contains(".git")));
     assert!(!filenames.iter().any(|n| n.contains("target")));
+}
+
+#[test]
+fn test_flattenfiles_truncates_very_long_filenames() {
+    use llm_bucket::preprocess::{process, ProcessConfig, ProcessInput, ProcessorKind};
+    use std::fs::{create_dir_all, File};
+    use std::io::Write;
+    use tempfile::tempdir;
+
+    let tmp = tempdir().unwrap();
+    let repo_path = tmp.path();
+
+    // Build a very long path, flattening would produce >255 bytes filename
+    let repeat_count = 50;
+    let very_deep_dir = repo_path.join(
+        std::iter::repeat("verylongsegment")
+            .take(repeat_count)
+            .collect::<std::path::PathBuf>(),
+    );
+    create_dir_all(&very_deep_dir).unwrap();
+
+    let file_path = very_deep_dir.join("finalfilewithareallylongnametotestthelimit.txt");
+    {
+        let mut f = File::create(&file_path).unwrap();
+        writeln!(f, "should be present").unwrap();
+    }
+
+    let process_input = ProcessInput {
+        name: "test_flatten_long_filename".to_string(),
+        repo_path: repo_path.to_path_buf(),
+    };
+    let process_config = ProcessConfig {
+        kind: ProcessorKind::FlattenFiles,
+    };
+
+    let out_source = process(&process_config, process_input).expect("Should succeed");
+    let filenames: Vec<_> = out_source
+        .external_items
+        .iter()
+        .map(|i| i.filename.as_str())
+        .collect();
+
+    // Assert: All filenames ≤255 bytes (for each file produced)
+    for fname in &filenames {
+        assert!(
+            fname.len() <= 255,
+            "Output filename exceeds 255 byte limit: {}",
+            fname
+        );
+    }
 }

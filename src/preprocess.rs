@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 //! Module for processing repo sources into uploadable items, e.g. converting README.md to PDF.
 
-use std::path::{Path, PathBuf};
 use crate::code_to_pdf::{code_file_to_pdf, CodeToPdfError};
+use std::path::{Path, PathBuf};
 use tempfile;
-use tracing::{info, error, debug};
+use tracing::{debug, error, info};
 
 /// Processor configuration - describes how the sources are processed into uploadable items.
 #[derive(Debug)]
@@ -14,11 +14,11 @@ pub struct ProcessConfig {
 
 #[derive(Debug, Clone)]
 pub enum ProcessorKind {
-   /// For each source, outputs a single PDF (README.md converted)
-   ReadmeToPDF,
-   /// Flattens all files in the repo, uploading them with directory encoded in name
-   FlattenFiles,
-   // Future: CodeToPDF, DirectoryToPDF, etc
+    /// For each source, outputs a single PDF (README.md converted)
+    ReadmeToPDF,
+    /// Flattens all files in the repo, uploading them with directory encoded in name
+    FlattenFiles,
+    // Future: CodeToPDF, DirectoryToPDF, etc
 }
 
 /// Input for processing step: a single source location (name, local path, etc)
@@ -54,7 +54,10 @@ impl From<std::io::Error> for ProcessError {
 }
 
 /// Main processor function: for the kind specified in config, process this input and return a single source+items.
-pub fn process(config: &ProcessConfig, input: ProcessInput) -> Result<ExternalSourceInput, ProcessError> {
+pub fn process(
+    config: &ProcessConfig,
+    input: ProcessInput,
+) -> Result<ExternalSourceInput, ProcessError> {
     info!(processor = ?config.kind, name = input.name, "Starting processing for source");
     let result = match config.kind {
         ProcessorKind::ReadmeToPDF => process_readme_to_pdf(input),
@@ -62,7 +65,10 @@ pub fn process(config: &ProcessConfig, input: ProcessInput) -> Result<ExternalSo
         // Add more processor kinds as needed
     };
     match &result {
-        Ok(ext) => info!(items = ext.external_items.len(), "Processing completed successfully"),
+        Ok(ext) => info!(
+            items = ext.external_items.len(),
+            "Processing completed successfully"
+        ),
         Err(e) => error!(error = ?e, "Processing failed"),
     };
     result
@@ -79,11 +85,10 @@ fn process_readme_to_pdf(input: ProcessInput) -> Result<ExternalSourceInput, Pro
     }
 
     // Prepare a temp output file path for pdf generation
-    let tmp_pdf = tempfile::NamedTempFile::new()
-        .map_err(|e| {
-            error!(error = ?e, "Failed to create temp file for PDF output");
-            ProcessError::Io(e)
-        })?;
+    let tmp_pdf = tempfile::NamedTempFile::new().map_err(|e| {
+        error!(error = ?e, "Failed to create temp file for PDF output");
+        ProcessError::Io(e)
+    })?;
     let tmp_pdf_path = tmp_pdf.path();
 
     // Call the code_to_pdf module (on-disk)
@@ -113,7 +118,11 @@ fn process_readme_to_pdf(input: ProcessInput) -> Result<ExternalSourceInput, Pro
         content,
     };
 
-    info!(filename = "README.pdf", size = ext_item.content.len(), "Generated README.pdf from README.md");
+    info!(
+        filename = "README.pdf",
+        size = ext_item.content.len(),
+        "Generated README.pdf from README.md"
+    );
     Ok(ExternalSourceInput {
         name: input.name,
         external_items: vec![ext_item],
@@ -144,15 +153,32 @@ fn process_flatten_files(input: ProcessInput) -> Result<ExternalSourceInput, Pro
                 }
                 visit_dir(&path, repo_path, results)?;
             } else if path.is_file() {
-                // compute a flat filename with "__" as a separator
+                // compute a flat filename with "__" as a separator, with truncation logic
                 let rel_path = path.strip_prefix(repo_path).unwrap();
-                let mut flat_name = String::new();
-                for (i, comp) in rel_path.components().enumerate() {
-                    if i > 0 {
-                        flat_name.push_str("__");
-                    }
-                    flat_name.push_str(&comp.as_os_str().to_string_lossy());
+                let mut segments: Vec<String> = Vec::new();
+                for comp in rel_path.components() {
+                    segments.push(comp.as_os_str().to_string_lossy().into_owned());
                 }
+                if segments.is_empty() {
+                    continue;
+                }
+                let basename = segments.pop().unwrap();
+                let mut joined: String;
+                let max_len = 180;
+                // Try to include as many trailing segments as possible
+                let mut from = 0;
+                loop {
+                    joined = if segments.len() > from {
+                        segments[from..].join("__") + "__" + &basename
+                    } else {
+                        basename.clone()
+                    };
+                    if joined.len() <= max_len || from >= segments.len() {
+                        break;
+                    }
+                    from += 1;
+                }
+                let flat_name = joined;
                 match std::fs::read(&path) {
                     Ok(content) => {
                         debug!(filename = %flat_name, size = content.len(), "Flattened file");
@@ -175,7 +201,10 @@ fn process_flatten_files(input: ProcessInput) -> Result<ExternalSourceInput, Pro
         return Err(e);
     }
 
-    info!(count = external_items.len(), "Completed flattening files in repository");
+    info!(
+        count = external_items.len(),
+        "Completed flattening files in repository"
+    );
     Ok(ExternalSourceInput {
         name: input.name,
         external_items,
