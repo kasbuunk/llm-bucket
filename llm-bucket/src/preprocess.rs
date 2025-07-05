@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 //! Module for processing repo sources into uploadable items, e.g. converting README.md to PDF.
 
-use crate::code_to_pdf::{code_file_to_pdf, CodeToPdfError};
+use llm_bucket_core::code_to_pdf::{code_file_to_pdf, CodeToPdfError};
 use std::path::{Path, PathBuf};
 use tempfile;
 use tracing::{debug, error, info};

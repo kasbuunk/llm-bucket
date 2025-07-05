@@ -22,6 +22,9 @@ process:
     let config_file = NamedTempFile::new().expect("temp file");
     write(config_file.path(), config_yaml).unwrap();
 
+    env::set_var("BUCKET_ID", "111");
+    env::set_var("OCP_APIM_SUBSCRIPTION_KEY", "not-used");
+
     // Import the new config loader (to be implemented)
     let config =
         llm_bucket::load_config::load_config(config_file.path()).expect("Config should load");
@@ -58,6 +61,9 @@ process:
 "#;
     let config_file = NamedTempFile::new().expect("temp file");
     write(config_file.path(), config_yaml).unwrap();
+
+    env::set_var("BUCKET_ID", "111");
+    env::set_var("OCP_APIM_SUBSCRIPTION_KEY", "some-valid-key");
 
     let config = llm_bucket::load_config::load_config(config_file.path())
         .expect("Config should load with Git and Confluence sources");
@@ -99,6 +105,9 @@ process:
 "#;
     let config_file = NamedTempFile::new().expect("temp file");
     write(config_file.path(), config_yaml).unwrap();
+
+    env::set_var("BUCKET_ID", "111");
+    env::set_var("OCP_APIM_SUBSCRIPTION_KEY", "dont-care-here");
 
     let config = llm_bucket::load_config::load_config(config_file.path())
         .expect("Loader should allow empty sources");

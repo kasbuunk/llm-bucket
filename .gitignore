@@ -4,6 +4,7 @@
 /test_output/
 /.env
 /tmp
+/llm-bucket/tmp
 config.yaml
 
 # Ignore confidential OpenAPI schema and generated client

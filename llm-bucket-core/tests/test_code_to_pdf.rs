@@ -3,7 +3,7 @@ use std::io::Write;
 use tempfile::tempdir;
 
 // Assume your public API looks like this and handles font management internally.
-use llm_bucket::code_to_pdf::code_file_to_pdf;
+use llm_bucket_core::code_to_pdf::code_file_to_pdf;
 
 #[test]
 fn test_code_file_to_pdf_creates_valid_pdf() {
@@ -17,8 +17,7 @@ fn test_code_file_to_pdf_creates_valid_pdf() {
     writeln!(input_file, "fn main() {{ println!(\"hi world\"); }}").unwrap();
 
     // Call conversion function. Font is handled by the module - minimal interface!
-    code_file_to_pdf(&input_path, &output_path)
-        .expect("PDF conversion failed");
+    code_file_to_pdf(&input_path, &output_path).expect("PDF conversion failed");
 
     // Assert output was created and is non-empty
     let metadata = fs::metadata(&output_path).unwrap();
@@ -29,9 +28,5 @@ fn test_code_file_to_pdf_creates_valid_pdf() {
 
     // Optionally: scan first bytes for PDF signature
     let pdf_bytes = fs::read(&output_path).unwrap();
-    assert_eq!(
-        &pdf_bytes[0..4],
-        b"%PDF",
-        "PDF file missing magic header"
-    );
+    assert_eq!(&pdf_bytes[0..4], b"%PDF", "PDF file missing magic header");
 }

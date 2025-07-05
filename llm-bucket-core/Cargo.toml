@@ -1,0 +1,19 @@
+[package]
+name = "llm-bucket-core"
+version = "0.1.0"
+edition = "2021"
+description = "Open source core logic and pipelines for llm-bucket. All business logic, no proprietary dependencies."
+license = "MIT"
+authors = ["Kas Buunk <kasbuunk@gmail.com>"]
+repository = "https://github.com/kasbuunk/llm-bucket"
+
+[lib]
+name = "llm_bucket_core"
+path = "src/lib.rs"
+
+[dependencies]
+printpdf = "0.8.2"
+tempfile = "3"
+tracing = "0.1"
+
+[dev-dependencies]

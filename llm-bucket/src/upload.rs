@@ -69,13 +69,13 @@ pub trait Uploader: Send + Sync {
     /// Fetch a single external source by its ID.
     async fn get_source_by_id(
         &self,
-        external_source_id: i32
+        external_source_id: i32,
     ) -> Result<ExternalSource, Box<dyn std::error::Error + Send + Sync>>;
 
     /// Delete an external source by id.
     async fn delete_source_by_id(
         &self,
-        external_source_id: i32
+        external_source_id: i32,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
     /// Delete an external item by id.
@@ -97,10 +97,10 @@ use std::env;
 use openapi::apis::configuration::{ApiKey, Configuration};
 use openapi::apis::external_api::{
     create_external_source_v1_buckets_bucket_id_external_sources_post,
-    CreateExternalSourceV1BucketsBucketIdExternalSourcesPostError,
-    get_external_source_by_id_v1_buckets_bucket_id_external_sources_external,
     delete_external_source_v1_buckets_bucket_id_external_sources_external_sou,
+    get_external_source_by_id_v1_buckets_bucket_id_external_sources_external,
     get_external_sources_for_bucket_v1_buckets_bucket_id_external_sources_get,
+    CreateExternalSourceV1BucketsBucketIdExternalSourcesPostError,
 };
 use openapi::models::CreateExternalSource;
 
@@ -123,11 +123,12 @@ impl LLMClient {
                     prefix: None,
                     key: api_key.clone(),
                 });
-                tracing::info!(api_key_set = api_key.len() > 0, bucket_id, "Initialized LLMClient from environment");
-                Ok(LLMClient {
-                    conf,
+                tracing::info!(
+                    api_key_set = api_key.len() > 0,
                     bucket_id,
-                })
+                    "Initialized LLMClient from environment"
+                );
+                Ok(LLMClient { conf, bucket_id })
             }
             (Err(e), _) => {
                 tracing::error!(error = ?e, "OCP_APIM_SUBSCRIPTION_KEY missing in environment");
@@ -147,7 +148,11 @@ impl Uploader for LLMClient {
         &self,
         req: NewExternalSource<'_>,
     ) -> Result<ExternalSource, Box<dyn std::error::Error + Send + Sync>> {
-        tracing::info!(bucket_id = req.bucket_id, source_name = req.name, "Uploading new external source");
+        tracing::info!(
+            bucket_id = req.bucket_id,
+            source_name = req.name,
+            "Uploading new external source"
+        );
         let body = CreateExternalSource {
             external_source_name: req.name.to_string(),
         };
@@ -162,7 +167,10 @@ impl Uploader for LLMClient {
 
         match result {
             Ok(api_src) => {
-                tracing::info!(source_id = api_src.external_source_id, "Successfully created external source");
+                tracing::info!(
+                    source_id = api_src.external_source_id,
+                    "Successfully created external source"
+                );
                 Ok(ExternalSource {
                     bucket_id: api_src.bucket_id,
                     external_source_id: api_src.external_source_id,
@@ -182,8 +190,8 @@ impl Uploader for LLMClient {
         &self,
         req: NewExternalItem<'_>,
     ) -> Result<ExternalItem, Box<dyn std::error::Error + Send + Sync>> {
-        use sha2::{Digest, Sha256};
         use openapi::models::{CreateExternalItem as ApiNewItem, ProcessingState};
+        use sha2::{Digest, Sha256};
 
         tracing::info!(
             file_url = req.url,
@@ -200,7 +208,8 @@ impl Uploader for LLMClient {
         };
 
         // Parse processing_state (accepts Option<str> or just None)
-        let api_processing_state = req.processing_state
+        let api_processing_state = req
+            .processing_state
             .and_then(|s| serde_json::from_str::<ProcessingState>(&format!("\"{s}\"")).ok());
 
         // Build the API item payload
@@ -281,13 +290,17 @@ impl Uploader for LLMClient {
     async fn list_sources(
         &self,
     ) -> Result<Vec<ExternalSource>, Box<dyn std::error::Error + Send + Sync>> {
-        tracing::info!(bucket_id = self.bucket_id, "Listing all external sources for bucket");
-        let api_results = get_external_sources_for_bucket_v1_buckets_bucket_id_external_sources_get(
-            &self.conf,
-            self.bucket_id as i32,
-            None,
-        )
-        .await;
+        tracing::info!(
+            bucket_id = self.bucket_id,
+            "Listing all external sources for bucket"
+        );
+        let api_results =
+            get_external_sources_for_bucket_v1_buckets_bucket_id_external_sources_get(
+                &self.conf,
+                self.bucket_id as i32,
+                None,
+            )
+            .await;
 
         match api_results {
             Ok(sources) => {
@@ -314,7 +327,11 @@ impl Uploader for LLMClient {
         &self,
         external_source_id: i32,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        tracing::info!(bucket_id = self.bucket_id, external_source_id, "Deleting external source");
+        tracing::info!(
+            bucket_id = self.bucket_id,
+            external_source_id,
+            "Deleting external source"
+        );
         let res = delete_external_source_v1_buckets_bucket_id_external_sources_external_sou(
             &self.conf,
             self.bucket_id as i32,
@@ -339,7 +356,12 @@ impl Uploader for LLMClient {
         external_source_id: i64,
         external_item_id: i64,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        tracing::info!(bucket_id = self.bucket_id, external_source_id, external_item_id, "Deleting external item");
+        tracing::info!(
+            bucket_id = self.bucket_id,
+            external_source_id,
+            external_item_id,
+            "Deleting external item"
+        );
         let res = openapi::apis::external_api::delete_external_item_v1_buckets_bucket_id_external_sources_external_sourc(
             &self.conf,
             self.bucket_id as i32,
@@ -350,7 +372,11 @@ impl Uploader for LLMClient {
         .await;
         match res {
             Ok(_) => {
-                tracing::info!(external_item_id, external_source_id, "Successfully deleted external item");
+                tracing::info!(
+                    external_item_id,
+                    external_source_id,
+                    "Successfully deleted external item"
+                );
                 Ok(())
             }
             Err(e) => {
