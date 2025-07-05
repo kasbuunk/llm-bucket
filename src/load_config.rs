@@ -1,10 +1,10 @@
-use crate::synchronise::{SynchroniseConfig, DownloadConfig, UploadConfig, SourceAction, GitSource};
 use crate::preprocess::{ProcessConfig, ProcessorKind};
-use std::path::Path;
-use std::fs;
-use anyhow::{Result, Context};
+use crate::synchronise::{DownloadConfig, GitSource, SourceAction, SynchroniseConfig};
+use anyhow::{Context, Result};
 use serde::Deserialize;
-use tracing::{info, error};
+use std::fs;
+use std::path::Path;
+use tracing::{error, info};
 
 #[derive(Deserialize)]
 struct StaticConfig {
@@ -51,10 +51,14 @@ pub fn load_config<P: AsRef<Path>>(path: P) -> Result<SynchroniseConfig> {
         Ok(content) => {
             info!(config_path = ?path_ref, "Config file read successfully");
             content
-        },
+        }
         Err(e) => {
             error!(error = ?e, config_path = ?path_ref, "Failed to read config file");
-            return Err(anyhow::anyhow!("Failed to read config file {:?}: {}", path_ref, e));
+            return Err(anyhow::anyhow!(
+                "Failed to read config file {:?}: {}",
+                path_ref,
+                e
+            ));
         }
     };
 
@@ -62,7 +66,7 @@ pub fn load_config<P: AsRef<Path>>(path: P) -> Result<SynchroniseConfig> {
         Ok(conf) => {
             info!(config_path = ?path_ref, "Parsed config YAML successfully");
             conf
-        },
+        }
         Err(e) => {
             error!(error = ?e, config_path = ?path_ref, "Failed to parse config YAML");
             return Err(anyhow::anyhow!("Failed to parse config YAML: {e}"));
@@ -79,7 +83,9 @@ pub fn load_config<P: AsRef<Path>>(path: P) -> Result<SynchroniseConfig> {
         },
         Err(e) => {
             error!(error = ?e, "BUCKET_ID environment variable not set");
-            return Err(anyhow::anyhow!("BUCKET_ID environment variable not set: {e}"));
+            return Err(anyhow::anyhow!(
+                "BUCKET_ID environment variable not set: {e}"
+            ));
         }
     };
 
@@ -87,10 +93,12 @@ pub fn load_config<P: AsRef<Path>>(path: P) -> Result<SynchroniseConfig> {
         Ok(key) => {
             info!("OCP_APIM_SUBSCRIPTION_KEY found in env");
             key
-        },
+        }
         Err(e) => {
             error!(error = ?e, "OCP_APIM_SUBSCRIPTION_KEY environment variable not set");
-            return Err(anyhow::anyhow!("OCP_APIM_SUBSCRIPTION_KEY environment variable not set: {e}"));
+            return Err(anyhow::anyhow!(
+                "OCP_APIM_SUBSCRIPTION_KEY environment variable not set: {e}"
+            ));
         }
     };
 
@@ -121,20 +129,13 @@ pub fn load_config<P: AsRef<Path>>(path: P) -> Result<SynchroniseConfig> {
 
     let process_config = ProcessConfig { kind: process_kind };
 
-    let upload_config = UploadConfig {
-        bucket_id,
-        api_key: Some(api_key),
-    };
-
     info!(
-        bucket_id = bucket_id,
         output_dir = %download_config.output_dir.display(),
-        "Config loaded and merged successfully"
+        "Config loaded successfully"
     );
 
     Ok(SynchroniseConfig {
         download: download_config,
         process: process_config,
-        upload: upload_config,
     })
 }

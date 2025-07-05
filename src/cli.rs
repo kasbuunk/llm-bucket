@@ -1,8 +1,9 @@
+use crate::load_config::load_config;
+use crate::synchronise::synchronise;
+use crate::upload::LLMClient;
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use anyhow::Result;
-use crate::synchronise::synchronise;
-use crate::load_config::load_config;
 
 /// CLI for llm-bucket: aggregate and publish knowledge snapshots.
 #[derive(Parser)]
@@ -23,7 +24,7 @@ pub enum Commands {
         /// Path to the YAML config file
         #[clap(long)]
         config: PathBuf,
-    }
+    },
 }
 
 /// Extracted async CLI logic entrypoint for integration tests and main()
@@ -35,7 +36,9 @@ pub async fn run(cli: Cli) -> Result<()> {
         Commands::Sync { config } => {
             let config = load_config(config)?;
             tracing::info!(command = "sync", "Starting synchronisation process");
-            match synchronise(&config).await {
+            let uploader =
+                LLMClient::new_from_env().expect("Failed to construct uploader from env");
+            match synchronise(&config, &uploader).await {
                 Ok(report) => {
                     tracing::info!(command = "sync", ?report, "Synchronisation complete");
                     Ok(())
