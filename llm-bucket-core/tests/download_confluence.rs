@@ -12,11 +12,8 @@
 //!
 //! If not present, test is skipped.
 
-use llm_bucket::config::{Config, SourceAction};
+use llm_bucket_core::config::{Config, ConfluenceSource, SourceAction};
 use std::{fs, path::Path};
-
-/// Import the public ConfluenceSource from config module (it is now defined there).
-use llm_bucket::config::ConfluenceSource;
 
 /// At test start, load dotenv so env variables are available!
 fn ensure_env_loaded() {
@@ -30,17 +27,16 @@ fn required_env_var(key: &str) -> Option<String> {
 
 fn confluence_test_config() -> Option<(Config, String)> {
     // Gather all required vars
-    let base_url     = required_env_var("CONFLUENCE_BASE_URL")?;
-    let api_email    = required_env_var("CONFLUENCE_API_EMAIL")?; // not used directly but checked/needed
-    let api_token    = required_env_var("CONFLUENCE_API_TOKEN")?;
-    let space_key    = required_env_var("CONFLUENCE_SPACE_KEY")?;
+    let base_url = required_env_var("CONFLUENCE_BASE_URL")?;
+    let api_email = required_env_var("CONFLUENCE_API_EMAIL")?; // not used directly but checked/needed
+    let api_token = required_env_var("CONFLUENCE_API_TOKEN")?;
+    let space_key = required_env_var("CONFLUENCE_SPACE_KEY")?;
 
     // Build the deterministic output dir (as in code under test)
     let output_dir = "./tmp/test_output_confluence";
-    let expected_subdir = format!(
-        "confluence_{}_{}",
-        base_url, space_key
-    ).replace('/', "_").replace(':', "_");
+    let expected_subdir = format!("confluence_{}_{}", base_url, space_key)
+        .replace('/', "_")
+        .replace(':', "_");
 
     // Expect a SourceAction::Confluence — must exist in main code eventually.
     let dummy_src = SourceAction::Confluence(confl_src_struct(base_url.clone(), space_key.clone()));
@@ -56,7 +52,10 @@ fn confluence_test_config() -> Option<(Config, String)> {
 
 // Dummy construction, now the proper ConfluenceSource is public API.
 fn confl_src_struct(base_url: String, space_key: String) -> ConfluenceSource {
-    ConfluenceSource { base_url, space_key }
+    ConfluenceSource {
+        base_url,
+        space_key,
+    }
 }
 
 #[tokio::test]
@@ -65,10 +64,14 @@ async fn test_download_confluence_space_populates_dir() {
     ensure_env_loaded();
 
     // Print out env for debug
-    let base_url = std::env::var("CONFLUENCE_BASE_URL").unwrap_or_else(|_| "---MISSING---".to_string());
-    let email = std::env::var("CONFLUENCE_API_EMAIL").unwrap_or_else(|_| "---MISSING---".to_string());
-    let token = std::env::var("CONFLUENCE_API_TOKEN").unwrap_or_else(|_| "---MISSING---".to_string());
-    let space_key = std::env::var("CONFLUENCE_SPACE_KEY").unwrap_or_else(|_| "---MISSING---".to_string());
+    let base_url =
+        std::env::var("CONFLUENCE_BASE_URL").unwrap_or_else(|_| "---MISSING---".to_string());
+    let email =
+        std::env::var("CONFLUENCE_API_EMAIL").unwrap_or_else(|_| "---MISSING---".to_string());
+    let token =
+        std::env::var("CONFLUENCE_API_TOKEN").unwrap_or_else(|_| "---MISSING---".to_string());
+    let space_key =
+        std::env::var("CONFLUENCE_SPACE_KEY").unwrap_or_else(|_| "---MISSING---".to_string());
 
     println!("[DEBUG] CONFLUENCE_BASE_URL={}", base_url);
     println!("[DEBUG] CONFLUENCE_API_EMAIL={}", email);
@@ -98,7 +101,7 @@ async fn test_download_confluence_space_populates_dir() {
     let _ = fs::remove_dir_all(&config.output_dir);
 
     // Download!
-    let result = llm_bucket::download::run(&config).await;
+    let result = llm_bucket_core::download::run(&config).await;
 
     // This will fail until SourceAction::Confluence and implementation are added.
     assert!(
@@ -113,7 +116,9 @@ async fn test_download_confluence_space_populates_dir() {
         "Downloaded Confluence source subdir ('{}') should exist and be a directory",
         subdir_path.display()
     );
-    let has_files = fs::read_dir(&subdir_path).map(|mut rd| rd.next().is_some()).unwrap_or(false);
+    let has_files = fs::read_dir(&subdir_path)
+        .map(|mut rd| rd.next().is_some())
+        .unwrap_or(false);
     assert!(
         has_files,
         "Downloaded Confluence subdir ('{}') should contain at least one file (page or attachment)",
@@ -133,7 +138,7 @@ async fn test_downloads_all_confluence_pages_as_markdown() {
     std::env::set_var("CONFLUENCE_PAGE_LIMIT", "15");
 
     // Run Confluence download
-    let result = llm_bucket::download::run(&config).await;
+    let result = llm_bucket_core::download::run(&config).await;
     assert!(result.is_ok(), "download::run() should succeed");
 
     let subdir_path = Path::new(&config.output_dir).join(expected_dir);

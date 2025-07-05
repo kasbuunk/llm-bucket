@@ -1559,8 +1559,14 @@ dependencies = [
 name = "llm-bucket-core"
 version = "0.1.0"
 dependencies = [
+ "dotenvy",
  "printpdf",
+ "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
  "tempfile",
+ "tokio",
  "tracing",
 ]
 

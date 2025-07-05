@@ -1,7 +1,7 @@
 // Integration test for llm-bucket
 // This test sets up a Config with a public git source, runs download::run, and asserts output dir populated.
 
-use llm_bucket::config::{Config, GitSource, SourceAction};
+use llm_bucket_core::config::{Config, GitSource, SourceAction};
 use std::fs;
 use std::path::Path;
 
@@ -17,30 +17,25 @@ async fn test_download_populates_directory_table_driven() {
     let repo_url = "https://github.com/kasbuunk/llm-bucket";
     let reference = "main";
     let output_dir = "./tmp/test_output";
-    let expected_subdir_llm = format!(
-        "git_{}_{}",
-        repo_url,
-        reference
-    ).replace('/', "_").replace(':', "_");
+    let expected_subdir_llm = format!("git_{}_{}", repo_url, reference)
+        .replace('/', "_")
+        .replace(':', "_");
 
     // Test values for 'ai'
     let ai_repo_url = "https://github.com/kasbuunk/ai";
     let ai_reference = "main";
-    let expected_subdir_ai = format!(
-        "git_{}_{}",
-        ai_repo_url,
-        ai_reference
-    ).replace('/', "_").replace(':', "_");
+    let expected_subdir_ai = format!("git_{}_{}", ai_repo_url, ai_reference)
+        .replace('/', "_")
+        .replace(':', "_");
 
     // Test values for private repo via SSH
     let private_ssh_url = "git@github.com:kasbuunk/private-repo-test.git";
     let private_reference = "main";
     // note: intentionally use same normalization logic for outputs as for https
     // this means the test expects directory based on path after host and branch
-    let expected_subdir_private = format!(
-        "git_{}_{}",
-        private_ssh_url, private_reference
-    ).replace('/', "_").replace(':', "_");
+    let expected_subdir_private = format!("git_{}_{}", private_ssh_url, private_reference)
+        .replace('/', "_")
+        .replace(':', "_");
 
     let test_cases = vec![
         TestCase {
@@ -109,26 +104,26 @@ async fn test_download_populates_directory_table_driven() {
                 ],
             },
             expected_dirs: vec![
-                format!(
-                    "git_{}_{}",
-                    repo_url,
-                    reference
-                ).replace('/', "_").replace(':', "_"),
-                format!(
-                    "git_{}_{}",
-                    repo_url,
-                    "879e21e"
-                ).replace('/', "_").replace(':', "_"),
+                format!("git_{}_{}", repo_url, reference)
+                    .replace('/', "_")
+                    .replace(':', "_"),
+                format!("git_{}_{}", repo_url, "879e21e")
+                    .replace('/', "_")
+                    .replace(':', "_"),
             ],
-        }
+        },
     ];
 
     for tc in test_cases {
         // Always clean output dir before running each case for isolation
         let _ = std::fs::remove_dir_all(output_dir);
 
-        let result = llm_bucket::download::run(&tc.config).await;
-        assert!(result.is_ok(), "{}: download::run() should succeed", tc.name);
+        let result = llm_bucket_core::download::run(&tc.config).await;
+        assert!(
+            result.is_ok(),
+            "{}: download::run() should succeed",
+            tc.name
+        );
 
         // Assert all expected directories exist and are not empty
         for expected_dir in &tc.expected_dirs {
@@ -160,6 +155,9 @@ async fn test_download_empty_sources_no_error() {
         sources: vec![],
     };
 
-    let result = llm_bucket::download::run(&config).await;
-    assert!(result.is_ok(), "download::run() should succeed with empty sources");
+    let result = llm_bucket_core::download::run(&config).await;
+    assert!(
+        result.is_ok(),
+        "download::run() should succeed with empty sources"
+    );
 }

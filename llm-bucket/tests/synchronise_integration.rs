@@ -254,9 +254,9 @@ async fn test_synchronise_removes_existing_sources_before_upload() {
     let config = SynchroniseConfig { download, process };
 
     // Act: run synchronise (should empty first, then upload new one)
-    let res = synchronise(&config, &uploader).await;
-    assert!(res.is_ok(), "Synchronise should succeed");
-    let report = res.expect("Synchronise should return a report");
+    let report = synchronise(&config, &uploader)
+        .await
+        .expect("Synchronise should succeed");
 
     // Assert: dummy source is gone, only new ones remain
     let sources_after = client

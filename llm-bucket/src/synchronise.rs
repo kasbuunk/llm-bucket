@@ -3,6 +3,9 @@
 use futures::future::try_join_all;
 use tracing::{debug, error, info};
 
+use llm_bucket_core::config;
+use llm_bucket_core::download;
+
 use crate::preprocess;
 pub use preprocess::{
     process, ExternalItemInput, ExternalSourceInput, ProcessConfig, ProcessError, ProcessInput,
@@ -88,24 +91,22 @@ where
     for source in &config.download.sources {
         // --- Step 1: Download ---
         info!(source = ?source, "[SYNC] Starting download for source");
-        let dl_config = crate::config::Config {
+        let dl_config = config::Config {
             output_dir: config.download.output_dir.clone(),
             sources: vec![match source {
-                SourceAction::Git(g) => {
-                    crate::config::SourceAction::Git(crate::config::GitSource {
-                        repo_url: g.repo_url.clone(),
-                        reference: g.reference.clone(),
-                    })
-                }
+                SourceAction::Git(g) => config::SourceAction::Git(config::GitSource {
+                    repo_url: g.repo_url.clone(),
+                    reference: g.reference.clone(),
+                }),
                 SourceAction::Confluence(c) => {
-                    crate::config::SourceAction::Confluence(crate::config::ConfluenceSource {
+                    config::SourceAction::Confluence(config::ConfluenceSource {
                         base_url: c.base_url.clone(),
                         space_key: c.space_key.clone(),
                     })
                 }
             }],
         };
-        match crate::download::run(&dl_config).await {
+        match download::run(&dl_config).await {
             Ok(_) => {
                 info!(source = ?source, "[SYNC] Download succeeded");
             }

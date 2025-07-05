@@ -8,4 +8,6 @@
 //! Add this as a dependency for all shared pipeline, processing, config, and sync code.
 
 pub mod code_to_pdf;
+pub mod config;
+pub mod download;
 // Empty entry point. Add modules here as crate evolves.
