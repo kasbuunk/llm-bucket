@@ -1,10 +1,9 @@
+use llm_bucket_core::preprocess::{
+    process, ExternalItemInput, ExternalSourceInput, ProcessConfig, ProcessInput, ProcessorKind,
+};
 use std::fs::File;
 use std::io::Write;
 use tempfile::tempdir;
-use llm_bucket::preprocess::{
-    ProcessConfig, ProcessorKind, ProcessInput, process,
-    ExternalSourceInput, ExternalItemInput,
-};
 
 #[test]
 fn test_process_readmetopdf_single_source_to_pdf_item() {
@@ -30,5 +29,8 @@ fn test_process_readmetopdf_single_source_to_pdf_item() {
     assert_eq!(out_source.external_items.len(), 1, "One item: README.pdf");
     let item = &out_source.external_items[0];
     assert_eq!(item.filename, "README.pdf");
-    assert!(item.content.len() > 100, "Content should be a non-empty PDF");
+    assert!(
+        item.content.len() > 100,
+        "Content should be a non-empty PDF"
+    );
 }

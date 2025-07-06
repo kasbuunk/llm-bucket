@@ -17,7 +17,6 @@ llm-bucket-core = { path = "../llm-bucket-core" }
 sha2 = "0.10"
 printpdf = "0.8.2"
 tempfile = "3"
-
 tokio = { version = "1.37", features = ["macros", "rt-multi-thread"] }
 uuid = { version = "1.17.0", features = ["v4"] }
 futures = "0.3.31"

@@ -3,8 +3,8 @@
 use futures::future::try_join_all;
 use tracing::{debug, error, info};
 
-use llm_bucket_core::config;
-use llm_bucket_core::download;
+use crate::config;
+use crate::download;
 
 use crate::preprocess;
 pub use preprocess::{
@@ -14,7 +14,7 @@ pub use preprocess::{
 
 use std::path::PathBuf;
 extern crate tokio; // Use extern crate for runtime context
-use crate::upload::Uploader; // trait for async upload calls
+use crate::uploader::Uploader; // use trait from core crate
 
 /// The top-level synchronise configuration.
 #[derive(Debug)]
@@ -168,7 +168,7 @@ where
             .expect("BUCKET_ID env var must be set for uploader")
             .parse()
             .expect("BUCKET_ID must be an integer");
-        let new_source = crate::upload::NewExternalSource {
+        let new_source = crate::uploader::NewExternalSource {
             name: &source_for_upload.name,
             bucket_id,
         };
@@ -194,7 +194,7 @@ where
         for ext_item in &source_for_upload.external_items {
             info!(filename = %ext_item.filename, "[SYNC][UPLOAD] Preparing upload for file");
             let content = String::from_utf8_lossy(&ext_item.content);
-            let item_req = crate::upload::NewExternalItem {
+            let item_req = crate::uploader::NewExternalItem {
                 content: &content, // Re-upload as UTF-8 text (for test, but might need to change to raw binary for real PDF upload)
                 url: &ext_item.filename, // Use the file name as URL for now
                 bucket_id: bucket_id as i64,
@@ -251,7 +251,7 @@ where
 /// Removes all sources in the bucket using the given client. Public async API.
 pub async fn empty_bucket<C>(client: &C) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
 where
-    C: crate::upload::Uploader,
+    C: Uploader,
 {
     let sources = client.list_sources().await?;
     let deletions = sources

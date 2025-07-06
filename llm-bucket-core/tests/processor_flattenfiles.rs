@@ -1,4 +1,4 @@
-use llm_bucket::preprocess::{process, ProcessConfig, ProcessInput, ProcessorKind};
+use llm_bucket_core::preprocess::{process, ProcessConfig, ProcessInput, ProcessorKind};
 use std::fs::{create_dir_all, File};
 use std::io::Write;
 use tempfile::tempdir;
@@ -60,7 +60,7 @@ fn test_process_flattenfiles_flattens_recursively_with_double_underscore_separat
 
 #[test]
 fn test_flattenfiles_skips_dotgit_and_target_dirs() {
-    use llm_bucket::preprocess::{process, ProcessConfig, ProcessInput, ProcessorKind};
+    use llm_bucket_core::preprocess::{process, ProcessConfig, ProcessInput, ProcessorKind};
     use std::fs::{create_dir_all, File};
     use std::io::Write;
     use tempfile::tempdir;
@@ -122,7 +122,7 @@ fn test_flattenfiles_skips_dotgit_and_target_dirs() {
 
 #[test]
 fn test_flattenfiles_truncates_very_long_filenames() {
-    use llm_bucket::preprocess::{process, ProcessConfig, ProcessInput, ProcessorKind};
+    use llm_bucket_core::preprocess::{process, ProcessConfig, ProcessInput, ProcessorKind};
     use std::fs::{create_dir_all, File};
     use std::io::Write;
     use tempfile::tempdir;

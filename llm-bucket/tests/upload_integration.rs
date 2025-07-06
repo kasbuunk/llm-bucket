@@ -1,4 +1,5 @@
-use llm_bucket::upload::{NewExternalSource, Uploader};
+use llm_bucket::upload::NewExternalSource;
+use llm_bucket_core::uploader::Uploader;
 use openapi::models::ProcessingState;
 use serial_test::serial;
 use uuid::Uuid;

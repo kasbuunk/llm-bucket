@@ -10,4 +10,6 @@
 pub mod code_to_pdf;
 pub mod config;
 pub mod download;
-// Empty entry point. Add modules here as crate evolves.
+pub mod preprocess;
+pub mod synchronise;
+pub mod uploader;

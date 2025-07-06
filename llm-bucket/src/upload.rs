@@ -5,91 +5,12 @@ use async_trait::async_trait;
 ///
 /// The implementation will handle the server URL and Ocp-Apim-Subscription-Key.
 /// The trait itself is agnostic of authentication and transport details.
-
-/// Represents the bare minimum data needed to create an external source.
-pub struct NewExternalSource<'a> {
-    /// Human-readable name for the external source (e.g., the repository name).
-    pub name: &'a str,
-    /// The bucket this source belongs to.
-    pub bucket_id: i32,
-}
-
-/// Represents the returned external source after creation.
-pub struct ExternalSource {
-    pub bucket_id: i32,
-    pub external_source_id: i32,
-    pub external_source_name: String,
-    pub updated_by: i32,
-    pub updated_datetime: Option<String>,
-}
-
-/// Represents the minimal data needed to upload a new item (file/document) to a source.
-pub struct NewExternalItem<'a> {
-    /// The raw file contents, typically UTF-8 text.
-    pub content: &'a str,
-    /// URL that must identify the item uniquely (can be a VCS or filesystem URL).
-    pub url: &'a str,
-    /// The parent bucket id.
-    pub bucket_id: i64,
-    /// The id of the external source to which this item belongs.
-    pub external_source_id: i64,
-    /// Optional state for processing. (Leave unpopulated to use default.)
-    pub processing_state: Option<&'a str>,
-}
-
-/// Represents the created/returned item.
-#[derive(Debug, serde::Serialize)]
-pub struct ExternalItem {
-    pub content_hash: String,
-    pub external_item_id: i64,
-    pub external_source_id: i64,
-    pub processing_state: String,
-    pub state: String,
-    pub updated_datetime: Option<String>,
-    pub url: String,
-}
+pub use llm_bucket_core::uploader::{
+    ExternalItem, ExternalSource, NewExternalItem, NewExternalSource,
+};
 
 /// Trait for uploading and managing sources and items asynchronously.
-#[async_trait]
-pub trait Uploader: Send + Sync {
-    /// Create a new external source (repository, folder, etc).
-    async fn create_source(
-        &self,
-        req: NewExternalSource<'_>,
-    ) -> Result<ExternalSource, Box<dyn std::error::Error + Send + Sync>>;
-
-    /// Create a new item (file) in an external source.
-    ///
-    /// Implementor is responsible for computing the content hash and filling all fields required by the API.
-    async fn create_item(
-        &self,
-        req: NewExternalItem<'_>,
-    ) -> Result<ExternalItem, Box<dyn std::error::Error + Send + Sync>>;
-
-    /// Fetch a single external source by its ID.
-    async fn get_source_by_id(
-        &self,
-        external_source_id: i32,
-    ) -> Result<ExternalSource, Box<dyn std::error::Error + Send + Sync>>;
-
-    /// Delete an external source by id.
-    async fn delete_source_by_id(
-        &self,
-        external_source_id: i32,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
-
-    /// Delete an external item by id.
-    async fn delete_item_by_id(
-        &self,
-        external_source_id: i64,
-        external_item_id: i64,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
-
-    /// List all external sources for the bucket.
-    async fn list_sources(
-        &self,
-    ) -> Result<Vec<ExternalSource>, Box<dyn std::error::Error + Send + Sync>>;
-}
+use llm_bucket_core::uploader::Uploader;
 
 use std::env;
 
@@ -144,9 +65,9 @@ impl LLMClient {
 
 #[async_trait]
 impl Uploader for LLMClient {
-    async fn create_source(
+    async fn create_source<'a>(
         &self,
-        req: NewExternalSource<'_>,
+        req: NewExternalSource<'a>,
     ) -> Result<ExternalSource, Box<dyn std::error::Error + Send + Sync>> {
         tracing::info!(
             bucket_id = req.bucket_id,
@@ -186,9 +107,9 @@ impl Uploader for LLMClient {
         }
     }
 
-    async fn create_item(
+    async fn create_item<'a>(
         &self,
-        req: NewExternalItem<'_>,
+        req: NewExternalItem<'a>,
     ) -> Result<ExternalItem, Box<dyn std::error::Error + Send + Sync>> {
         use openapi::models::{CreateExternalItem as ApiNewItem, ProcessingState};
         use sha2::{Digest, Sha256};

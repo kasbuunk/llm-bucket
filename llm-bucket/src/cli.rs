@@ -1,8 +1,8 @@
 use crate::load_config::load_config;
-use crate::synchronise::synchronise;
 use crate::upload::LLMClient;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use llm_bucket_core::synchronise::synchronise;
 use std::path::PathBuf;
 
 /// CLI for llm-bucket: aggregate and publish knowledge snapshots.

@@ -1,6 +1,6 @@
-use crate::preprocess::{ProcessConfig, ProcessorKind};
-use crate::synchronise::{DownloadConfig, GitSource, SourceAction, SynchroniseConfig};
 use anyhow::{Context, Result};
+use llm_bucket_core::preprocess::{ProcessConfig, ProcessorKind};
+use llm_bucket_core::synchronise::{DownloadConfig, GitSource, SourceAction, SynchroniseConfig};
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;
@@ -111,7 +111,7 @@ pub fn load_config<P: AsRef<Path>>(path: P) -> Result<SynchroniseConfig> {
             }
             SourceActionYaml::Confluence { base_url, space_key } => {
                 info!(base_url = %base_url, space_key = %space_key, "Parsed confluence source from config");
-                SourceAction::Confluence(crate::synchronise::ConfluenceSource { base_url, space_key })
+                SourceAction::Confluence(llm_bucket_core::synchronise::ConfluenceSource { base_url, space_key })
             }
         }).collect(),
     };
