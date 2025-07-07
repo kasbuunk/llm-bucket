@@ -5,11 +5,9 @@ use serial_test::serial;
 use std::path::Path;
 use tempfile::tempdir;
 
+use llm_bucket_core::download::{ConfluenceSource, DownloadConfig, GitSource, SourceAction};
 use llm_bucket_core::preprocess::{ProcessConfig, ProcessorKind};
-use llm_bucket_core::synchronise::{
-    empty_bucket, synchronise, ConfluenceSource, DownloadConfig, GitSource, SourceAction,
-    SynchroniseConfig,
-};
+use llm_bucket_core::synchronise::{empty_bucket, synchronise, SynchroniseConfig};
 
 fn ensure_env_loaded_from_workspace() {
     // Loads .env from the workspace root regardless of cwd.

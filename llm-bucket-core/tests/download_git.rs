@@ -1,7 +1,8 @@
 // Integration test for llm-bucket
 // This test sets up a Config with a public git source, runs download::run, and asserts output dir populated.
 
-use llm_bucket_core::config::{Config, GitSource, SourceAction};
+use llm_bucket_core::config::Config;
+use llm_bucket_core::download::{GitSource, SourceAction};
 use std::fs;
 use std::path::Path;
 

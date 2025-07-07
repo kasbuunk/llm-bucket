@@ -12,7 +12,8 @@
 //!
 //! If not present, test is skipped.
 
-use llm_bucket_core::config::{Config, ConfluenceSource, SourceAction};
+use llm_bucket_core::config::Config;
+use llm_bucket_core::download::{ConfluenceSource, SourceAction};
 use std::{fs, path::Path};
 
 /// At test start, load dotenv so env variables are available!

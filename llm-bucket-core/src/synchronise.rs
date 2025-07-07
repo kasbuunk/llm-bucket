@@ -47,40 +47,13 @@ pub use preprocess::{
 use std::path::PathBuf;
 extern crate tokio; // Use extern crate for runtime context
 use crate::contract::Uploader; // use trait from core crate
+use crate::download::{ConfluenceSource, GitSource, SourceAction};
 
 /// The top-level synchronise configuration.
 #[derive(Debug)]
 pub struct SynchroniseConfig {
-    pub download: DownloadConfig,
+    pub download: crate::download::DownloadConfig,
     pub process: ProcessConfig,
-}
-
-/// Download configuration - what sources to fetch and where.
-#[derive(Debug)]
-pub struct DownloadConfig {
-    pub output_dir: PathBuf,
-    pub sources: Vec<SourceAction>,
-}
-
-#[derive(Debug, Clone)]
-pub enum SourceAction {
-    Git(GitSource),
-    Confluence(ConfluenceSource),
-    // Extendable for other source types
-}
-
-#[derive(Debug, Clone)]
-pub struct ConfluenceSource {
-    pub base_url: String,
-    pub space_key: String,
-    // Add more fields as needed (parent_page, filters, etc)
-}
-
-#[derive(Debug, Clone)]
-pub struct GitSource {
-    pub repo_url: String,
-    pub reference: Option<String>,
-    // Extendable (token, ssh, etc)
 }
 
 /// Entrypoint: synchronise the pipeline according to config.
@@ -126,16 +99,14 @@ where
         let dl_config = config::Config {
             output_dir: config.download.output_dir.clone(),
             sources: vec![match source {
-                SourceAction::Git(g) => config::SourceAction::Git(config::GitSource {
+                SourceAction::Git(g) => SourceAction::Git(GitSource {
                     repo_url: g.repo_url.clone(),
                     reference: g.reference.clone(),
                 }),
-                SourceAction::Confluence(c) => {
-                    config::SourceAction::Confluence(config::ConfluenceSource {
-                        base_url: c.base_url.clone(),
-                        space_key: c.space_key.clone(),
-                    })
-                }
+                SourceAction::Confluence(c) => SourceAction::Confluence(ConfluenceSource {
+                    base_url: c.base_url.clone(),
+                    space_key: c.space_key.clone(),
+                }),
             }],
         };
         match download::run(&dl_config).await {

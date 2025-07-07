@@ -33,8 +33,8 @@ process:
     assert_eq!(config.download.output_dir, PathBuf::from("./tmp/exports"));
     assert_eq!(config.download.sources.len(), 1);
     let repo = match &config.download.sources[0] {
-        llm_bucket_core::synchronise::SourceAction::Git(g) => g,
-        llm_bucket_core::synchronise::SourceAction::Confluence(_) => {
+        llm_bucket_core::download::SourceAction::Git(g) => g,
+        llm_bucket_core::download::SourceAction::Confluence(_) => {
             panic!("Unexpected Confluence source in this test")
         }
     };
@@ -75,12 +75,12 @@ process:
     let mut found_confluence = false;
     for src in &config.download.sources {
         match src {
-            llm_bucket_core::synchronise::SourceAction::Git(g) => {
+            llm_bucket_core::download::SourceAction::Git(g) => {
                 found_git = true;
                 assert_eq!(g.repo_url, "https://github.com/example/repo.git");
                 assert_eq!(g.reference.as_deref(), Some("main"));
             }
-            llm_bucket_core::synchronise::SourceAction::Confluence(c) => {
+            llm_bucket_core::download::SourceAction::Confluence(c) => {
                 found_confluence = true;
                 assert_eq!(c.base_url, "https://yourcompany.atlassian.net/wiki");
                 assert_eq!(c.space_key, "DOCS");

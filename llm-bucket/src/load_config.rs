@@ -25,8 +25,9 @@
 /// Internal implementation begins below.
 ///
 use anyhow::Result;
+use llm_bucket_core::download::{ConfluenceSource, DownloadConfig, GitSource, SourceAction};
 use llm_bucket_core::preprocess::{ProcessConfig, ProcessorKind};
-use llm_bucket_core::synchronise::{DownloadConfig, GitSource, SourceAction, SynchroniseConfig};
+use llm_bucket_core::synchronise::SynchroniseConfig;
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;
@@ -137,7 +138,7 @@ pub fn load_config<P: AsRef<Path>>(path: P) -> Result<SynchroniseConfig> {
             }
             SourceActionYaml::Confluence { base_url, space_key } => {
                 info!(base_url = %base_url, space_key = %space_key, "Parsed confluence source from config");
-                SourceAction::Confluence(llm_bucket_core::synchronise::ConfluenceSource { base_url, space_key })
+                SourceAction::Confluence(ConfluenceSource { base_url, space_key })
             }
         }).collect(),
     };

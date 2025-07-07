@@ -1,14 +1,47 @@
 use std::fs;
 use std::fs::File;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+
+/// Download configuration - what sources to fetch and where.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DownloadConfig {
+    pub output_dir: PathBuf,
+    pub sources: Vec<SourceAction>,
+}
+
+/// Selects the type of source for download (Git, Confluence, etc.)
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum SourceAction {
+    Git(GitSource),
+    Confluence(ConfluenceSource),
+    // Extendable for other source types.
+}
+
+/// Describes a Confluence download source.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ConfluenceSource {
+    pub base_url: String,
+    pub space_key: String,
+    // Add more fields as needed, e.g. parent_page, filters, etc.
+}
+
+/// Describes a Git repository download source.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct GitSource {
+    pub repo_url: String,
+    pub reference: Option<String>,
+    // Extendable (token, ssh, etc)
+}
+
+// Export source types and config for use outside this module
 
 pub async fn run(config: &crate::config::Config) -> Result<(), ()> {
     // Now supports Git and Confluence sources
     for source in &config.sources {
         match source {
-            crate::config::SourceAction::Git(git_source) => {
+            SourceAction::Git(git_source) => {
                 let repo_url = &git_source.repo_url;
                 let reference = git_source.reference.as_deref().unwrap_or("main");
                 let out_dir = &config.output_dir;
@@ -132,7 +165,7 @@ pub async fn run(config: &crate::config::Config) -> Result<(), ()> {
                     }
                 }
             }
-            crate::config::SourceAction::Confluence(confluence_source) => {
+            SourceAction::Confluence(confluence_source) => {
                 use reqwest::Client;
                 use std::fs;
                 use tracing::{error, info};
