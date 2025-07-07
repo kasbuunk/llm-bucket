@@ -28,7 +28,7 @@
 //!
 
 use crate::code_to_pdf::{code_file_to_pdf, CodeToPdfError};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tempfile;
 use tracing::{debug, error, info};
 
@@ -160,7 +160,7 @@ fn process_flatten_files(input: ProcessInput) -> Result<ExternalSourceInput, Pro
     info!(path = %input.repo_path.display(), "Flattening files in repository");
     let mut external_items = Vec::new();
     let repo_path = &input.repo_path;
-    let base_len = repo_path.components().count();
+    let _base_len = repo_path.components().count();
 
     fn visit_dir(
         dir: &std::path::Path,

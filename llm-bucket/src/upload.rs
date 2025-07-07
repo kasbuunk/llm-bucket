@@ -41,7 +41,6 @@ use openapi::apis::external_api::{
     delete_external_source_v1_buckets_bucket_id_external_sources_external_sou,
     get_external_source_by_id_v1_buckets_bucket_id_external_sources_external,
     get_external_sources_for_bucket_v1_buckets_bucket_id_external_sources_get,
-    CreateExternalSourceV1BucketsBucketIdExternalSourcesPostError,
 };
 use openapi::models::CreateExternalSource;
 

@@ -53,7 +53,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {

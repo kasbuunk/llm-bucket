@@ -24,7 +24,7 @@
 use tracing::{debug, error, info};
 
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+
 use std::path::Path;
 
 /// Error type for PDF generation

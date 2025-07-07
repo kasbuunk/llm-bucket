@@ -29,7 +29,7 @@
 ///
 /// Internal implementation begins below.
 ///
-use anyhow::{Context, Result};
+use anyhow::Result;
 use llm_bucket_core::preprocess::{ProcessConfig, ProcessorKind};
 use llm_bucket_core::synchronise::{DownloadConfig, GitSource, SourceAction, SynchroniseConfig};
 use serde::Deserialize;
@@ -104,7 +104,7 @@ pub fn load_config<P: AsRef<Path>>(path: P) -> Result<SynchroniseConfig> {
         }
     };
 
-    let bucket_id = match std::env::var("BUCKET_ID") {
+    let _bucket_id = match std::env::var("BUCKET_ID") {
         Ok(var) => match var.parse::<i64>() {
             Ok(id) => id,
             Err(e) => {
@@ -120,7 +120,7 @@ pub fn load_config<P: AsRef<Path>>(path: P) -> Result<SynchroniseConfig> {
         }
     };
 
-    let api_key = match std::env::var("OCP_APIM_SUBSCRIPTION_KEY") {
+    let _api_key = match std::env::var("OCP_APIM_SUBSCRIPTION_KEY") {
         Ok(key) => {
             info!("OCP_APIM_SUBSCRIPTION_KEY found in env");
             key
