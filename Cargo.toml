@@ -1,6 +1,8 @@
 [workspace]
 members = ["llm-bucket", "llm-bucket-core", "openapi-client/generated"]
 
+resolver = "2"
+
 # Optionally, you can specify common dependencies or workspace settings here.
 # [workspace.dependencies]
 # serde = "1.0"
