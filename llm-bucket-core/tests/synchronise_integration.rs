@@ -1,5 +1,5 @@
 use llm_bucket_core::uploader::{
-    ExternalItem, ExternalSource, MockUploader, NewExternalItem, NewExternalSource, Uploader,
+    ExternalItem, ExternalSource, MockUploader, NewExternalItem, NewExternalSource,
 };
 use serial_test::serial;
 use std::path::Path;

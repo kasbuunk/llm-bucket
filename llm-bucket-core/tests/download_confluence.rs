@@ -28,8 +28,8 @@ fn required_env_var(key: &str) -> Option<String> {
 fn confluence_test_config() -> Option<(Config, String)> {
     // Gather all required vars
     let base_url = required_env_var("CONFLUENCE_BASE_URL")?;
-    let api_email = required_env_var("CONFLUENCE_API_EMAIL")?; // not used directly but checked/needed
-    let api_token = required_env_var("CONFLUENCE_API_TOKEN")?;
+    let _api_email = required_env_var("CONFLUENCE_API_EMAIL")?; // not used directly but checked/needed
+    let _api_token = required_env_var("CONFLUENCE_API_TOKEN")?;
     let space_key = required_env_var("CONFLUENCE_SPACE_KEY")?;
 
     // Build the deterministic output dir (as in code under test)

@@ -18,11 +18,6 @@
 /// # Errors
 /// All errors in this module use `anyhow::Error` for context-rich diagnostics, and are surfaced at the CLI boundary.
 ///
-/// # Example
-/// ```rust
-/// let pipeline_config = load_config("path/to/config.yaml")?;
-/// ```
-///
 /// For accepted YAML schema, see the README.
 ///
 /// ---

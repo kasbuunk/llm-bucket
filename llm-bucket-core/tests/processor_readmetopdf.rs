@@ -1,6 +1,4 @@
-use llm_bucket_core::preprocess::{
-    process, ExternalItemInput, ExternalSourceInput, ProcessConfig, ProcessInput, ProcessorKind,
-};
+use llm_bucket_core::preprocess::{process, ProcessConfig, ProcessInput, ProcessorKind};
 use std::fs::File;
 use std::io::Write;
 use tempfile::tempdir;
