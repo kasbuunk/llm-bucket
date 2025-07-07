@@ -25,11 +25,10 @@
 /// Internal implementation begins below.
 ///
 use anyhow::Result;
-use llm_bucket_core::download::{ConfluenceSource, DownloadConfig, GitSource, SourceAction};
-use llm_bucket_core::preprocess::{ProcessConfig, ProcessorKind};
+use llm_bucket_core::download::SourceAction;
 use serde::Deserialize;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tracing::{error, info};
 
 #[derive(Debug, Deserialize)]

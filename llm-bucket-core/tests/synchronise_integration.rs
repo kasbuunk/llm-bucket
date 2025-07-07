@@ -341,7 +341,7 @@ async fn test_synchronise_removes_existing_sources_before_upload() {
 async fn test_synchronise_multiple_sources_reports_each_uploaded() {
     ensure_env_loaded_from_workspace();
     let temp_out = tempdir().unwrap();
-    let output_dir = temp_out.path().to_path_buf();
+    let _output_dir = temp_out.path().to_path_buf();
 
     let git_source = SourceAction::Git(GitSource {
         repo_url: "git@github.com:kasbuunk/llm-bucket.git".to_string(),

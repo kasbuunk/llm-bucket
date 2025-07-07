@@ -36,9 +36,6 @@
 use futures::future::try_join_all;
 use tracing::{debug, error, info};
 
-use crate::config;
-use crate::download;
-
 use crate::preprocess;
 pub use preprocess::{
     process, ExternalItemInput, ExternalSourceInput, ProcessConfig, ProcessError, ProcessInput,
@@ -47,7 +44,6 @@ pub use preprocess::{
 
 extern crate tokio; // Use extern crate for runtime context
 use crate::contract::Uploader; // use trait from core crate
-use crate::download::{ConfluenceSource, GitSource, SourceAction};
 
 /// The top-level synchronise configuration.
 /// Now only includes process config; downloader handles its own config (sources, output dir).
