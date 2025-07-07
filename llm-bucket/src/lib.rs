@@ -16,7 +16,7 @@
 /// - Handles uploading to remote knowledge stores using env-based authentication.
 ///
 /// # Dependency Structure
-/// - All actual business logic (synchronisation, config models, processing, uploader traits) live in [llm-bucket-core].
+/// - All actual business logic (synchronisation, config models, processing, contract traits) live in [llm-bucket-core].
 /// - This crate should only handle CLI argument parsing, one-time setup, tracing and orchestration.
 /// - Consider extending core functionality in `llm-bucket-core` before expanding CLI code here.
 ///

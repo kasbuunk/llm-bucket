@@ -18,7 +18,7 @@
 //! - [`download`]: Download logic for source repositories (e.g., Git, Confluence), creating disk snapshots.
 //! - [`preprocess`]: Processing/conversion of downloaded repos to uploadable items (PDFs, file flattening, etc).
 //! - [`synchronise`]: High-level pipeline for end-to-end sync (download-process-upload/report).
-//! - [`uploader`]: Interface trait for uploading sources/items (mockable for test).
+//! - [`contract`]: Interface trait for uploading sources/items (mockable for test).
 //! - [`code_to_pdf`]: Minimal stub conversion of code/README to PDF files.
 //!
 //! ## Example
@@ -33,7 +33,7 @@
 
 pub mod code_to_pdf;
 pub mod config;
+pub mod contract;
 pub mod download;
 pub mod preprocess;
 pub mod synchronise;
-pub mod uploader;

@@ -83,6 +83,5 @@ pub async fn run(cli: Cli) -> Result<()> {
         }
     };
 
-    // For CLI/test parity: Explicit process exit only in main(), not in run()
     result
 }

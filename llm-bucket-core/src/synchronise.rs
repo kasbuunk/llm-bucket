@@ -46,7 +46,7 @@ pub use preprocess::{
 
 use std::path::PathBuf;
 extern crate tokio; // Use extern crate for runtime context
-use crate::uploader::Uploader; // use trait from core crate
+use crate::contract::Uploader; // use trait from core crate
 
 /// The top-level synchronise configuration.
 #[derive(Debug)]
@@ -200,7 +200,7 @@ where
             .expect("BUCKET_ID env var must be set for uploader")
             .parse()
             .expect("BUCKET_ID must be an integer");
-        let new_source = crate::uploader::NewExternalSource {
+        let new_source = crate::contract::NewExternalSource {
             name: &source_for_upload.name,
             bucket_id,
         };
@@ -226,7 +226,7 @@ where
         for ext_item in &source_for_upload.external_items {
             info!(filename = %ext_item.filename, "[SYNC][UPLOAD] Preparing upload for file");
             let content = String::from_utf8_lossy(&ext_item.content);
-            let item_req = crate::uploader::NewExternalItem {
+            let item_req = crate::contract::NewExternalItem {
                 content: &content, // Re-upload as UTF-8 text (for test, but might need to change to raw binary for real PDF upload)
                 url: &ext_item.filename, // Use the file name as URL for now
                 bucket_id: bucket_id as i64,

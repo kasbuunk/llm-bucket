@@ -1,5 +1,5 @@
 use llm_bucket::upload::NewExternalSource;
-use llm_bucket_core::uploader::Uploader;
+use llm_bucket_core::contract::Uploader;
 use serial_test::serial;
 
 #[tokio::test]

@@ -1,4 +1,4 @@
-use llm_bucket_core::uploader::{
+use llm_bucket_core::contract::{
     ExternalItem, ExternalSource, MockUploader, NewExternalItem, NewExternalSource,
 };
 use serial_test::serial;

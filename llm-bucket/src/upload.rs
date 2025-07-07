@@ -25,12 +25,12 @@ use async_trait::async_trait;
 ///
 /// The implementation will handle the server URL and Ocp-Apim-Subscription-Key.
 /// The trait itself is agnostic of authentication and transport details.
-pub use llm_bucket_core::uploader::{
+pub use llm_bucket_core::contract::{
     ExternalItem, ExternalSource, NewExternalItem, NewExternalSource,
 };
 
 /// Trait for uploading and managing sources and items asynchronously.
-use llm_bucket_core::uploader::Uploader;
+use llm_bucket_core::contract::Uploader;
 
 use std::env;
 
