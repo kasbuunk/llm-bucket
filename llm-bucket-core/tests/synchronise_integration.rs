@@ -1,5 +1,6 @@
 use llm_bucket_core::contract::{
-    ExternalItem, ExternalSource, MockUploader, NewExternalItem, NewExternalSource,
+    DownloadedManifest, DownloadedSource, ExternalItem, ExternalSource, MockDownloader,
+    MockUploader, NewExternalItem, NewExternalSource,
 };
 use serial_test::serial;
 use std::path::Path;
@@ -25,13 +26,26 @@ async fn test_synchronise_readme_to_pdf_upload() {
     let temp_out = tempdir().unwrap();
     let output_dir = temp_out.path().to_path_buf();
 
-    let download = DownloadConfig {
-        output_dir: output_dir.clone(),
-        sources: vec![SourceAction::Git(GitSource {
-            repo_url: "git@github.com:kasbuunk/llm-bucket.git".to_string(),
-            reference: None,
-        })],
+    let git_source = SourceAction::Git(GitSource {
+        repo_url: "git@github.com:kasbuunk/llm-bucket.git".to_string(),
+        reference: None,
+    });
+    let git_dir = output_dir.join("git_git@github.com_kasbuunk_llm-bucket.git_main");
+    let downloaded_manifest = DownloadedManifest {
+        sources: vec![DownloadedSource {
+            logical_name: "git@github.com:kasbuunk/llm-bucket.git".into(),
+            local_path: git_dir.clone(),
+            original_source: git_source.clone(),
+        }],
     };
+
+    // Populate minimal README.md for processor to succeed
+    std::fs::create_dir_all(&git_dir).unwrap();
+    std::fs::write(
+        git_dir.join("README.md"),
+        "# Test README\nThis is a mock file.",
+    )
+    .unwrap();
 
     let process = ProcessConfig {
         kind: ProcessorKind::ReadmeToPDF,
@@ -71,7 +85,11 @@ async fn test_synchronise_readme_to_pdf_upload() {
             })
         });
 
-    let downloader = llm_bucket_core::download::DefaultDownloader::new(download);
+    let mut downloader = MockDownloader::new();
+    let manifest_clone = downloaded_manifest.clone();
+    downloader
+        .expect_download_all()
+        .return_once(move || Ok(manifest_clone));
     let manifest = downloader
         .download_all()
         .await
@@ -154,24 +172,31 @@ async fn test_empty_bucket_removes_all_sources() {
 #[tokio::test]
 #[serial]
 async fn test_synchronise_confluence_to_pdf_upload() {
-    // NOTE: This test now uses a mock uploader and does not check real Confluence network access.
     ensure_env_loaded_from_workspace();
     let temp_out = tempdir().unwrap();
     let output_dir = temp_out.path().to_path_buf();
 
-    // Load real Confluence credentials from env
-    let base_url =
-        std::env::var("CONFLUENCE_BASE_URL").expect("Missing CONFLUENCE_BASE_URL in env");
-    let space_key =
-        std::env::var("CONFLUENCE_SPACE_KEY").expect("Missing CONFLUENCE_SPACE_KEY in env");
+    let confluence_source = SourceAction::Confluence(ConfluenceSource {
+        base_url: "https://dummy.atlassian.net/wiki".to_string(),
+        space_key: "DUMMY".to_string(),
+    });
 
-    let download = DownloadConfig {
-        output_dir: output_dir.clone(),
-        sources: vec![SourceAction::Confluence(ConfluenceSource {
-            base_url,
-            space_key,
-        })],
+    let confluence_dir = output_dir.join("confluence_https___dummy.atlassian.net_wiki_DUMMY");
+    let downloaded_manifest = DownloadedManifest {
+        sources: vec![DownloadedSource {
+            logical_name: "https://dummy.atlassian.net/wiki:DUMMY".into(),
+            local_path: confluence_dir.clone(),
+            original_source: confluence_source.clone(),
+        }],
     };
+
+    // Populate dummy file(s) as FlattenFiles expects any file; use main.md
+    std::fs::create_dir_all(&confluence_dir).unwrap();
+    std::fs::write(
+        confluence_dir.join("main.md"),
+        "# Confluence Export\nSome content here.",
+    )
+    .unwrap();
 
     let process = ProcessConfig {
         kind: ProcessorKind::FlattenFiles,
@@ -203,7 +228,11 @@ async fn test_synchronise_confluence_to_pdf_upload() {
         })
     });
 
-    let downloader = llm_bucket_core::download::DefaultDownloader::new(download);
+    let mut downloader = MockDownloader::new();
+    let manifest_clone = downloaded_manifest.clone();
+    downloader
+        .expect_download_all()
+        .return_once(move || Ok(manifest_clone));
     let manifest = downloader
         .download_all()
         .await
@@ -313,7 +342,27 @@ async fn test_synchronise_removes_existing_sources_before_upload() {
     let process = ProcessConfig {
         kind: ProcessorKind::ReadmeToPDF,
     };
-    let downloader = llm_bucket_core::download::DefaultDownloader::new(download);
+    let mut downloader = MockDownloader::new();
+    let git_dir = output_dir.join("git_git@github.com_kasbuunk_llm-bucket.git_main");
+    let downloaded_manifest = DownloadedManifest {
+        sources: vec![DownloadedSource {
+            logical_name: "git@github.com:kasbuunk/llm-bucket.git".to_string(),
+            local_path: git_dir.clone(),
+            original_source: download.sources[0].clone(),
+        }],
+    };
+
+    // Populate minimal README.md for processor to succeed
+    std::fs::create_dir_all(&git_dir).unwrap();
+    std::fs::write(
+        git_dir.join("README.md"),
+        "# Test README\nThis is a mock file.",
+    )
+    .unwrap();
+    let manifest_clone = downloaded_manifest.clone();
+    downloader
+        .expect_download_all()
+        .return_once(move || Ok(manifest_clone));
     let manifest = downloader
         .download_all()
         .await
@@ -348,15 +397,9 @@ async fn test_synchronise_multiple_sources_reports_each_uploaded() {
         reference: None,
     });
 
-    // Load real Confluence credentials from env
-    let base_url =
-        std::env::var("CONFLUENCE_BASE_URL").expect("Missing CONFLUENCE_BASE_URL in env");
-    let space_key =
-        std::env::var("CONFLUENCE_SPACE_KEY").expect("Missing CONFLUENCE_SPACE_KEY in env");
-
     let confluence_source = SourceAction::Confluence(ConfluenceSource {
-        base_url,
-        space_key,
+        base_url: "https://dummy.atlassian.net/wiki".to_string(),
+        space_key: "DUMMY".to_string(),
     });
 
     let process = ProcessConfig {
@@ -400,11 +443,38 @@ async fn test_synchronise_multiple_sources_reports_each_uploaded() {
     });
 
     let tmp_outdir2 = tempdir().unwrap();
-    let download = llm_bucket_core::download::DownloadConfig {
-        output_dir: tmp_outdir2.path().to_path_buf(),
-        sources: vec![git_source, confluence_source],
+
+    let git_dir = tmp_outdir2
+        .path()
+        .join("git_git@github.com_kasbuunk_llm-bucket.git_main");
+    let confluence_dir = tmp_outdir2
+        .path()
+        .join("confluence_https___dummy.atlassian.net_wiki_DUMMY");
+    let downloaded_manifest = DownloadedManifest {
+        sources: vec![
+            DownloadedSource {
+                logical_name: "git@github.com:kasbuunk/llm-bucket.git".to_string(),
+                local_path: git_dir.clone(),
+                original_source: git_source,
+            },
+            DownloadedSource {
+                logical_name: "https://dummy.atlassian.net/wiki:DUMMY".to_string(),
+                local_path: confluence_dir.clone(),
+                original_source: confluence_source,
+            },
+        ],
     };
-    let downloader = llm_bucket_core::download::DefaultDownloader::new(download);
+
+    // Create minimal representative files for both sources, so flattenfiles processor works
+    std::fs::create_dir_all(&git_dir).unwrap();
+    std::fs::write(git_dir.join("lib.rs"), "// mock rust lib file").unwrap();
+    std::fs::create_dir_all(&confluence_dir).unwrap();
+    std::fs::write(confluence_dir.join("main.md"), "# Confluence item").unwrap();
+    let mut downloader = MockDownloader::new();
+    let manifest_clone = downloaded_manifest.clone();
+    downloader
+        .expect_download_all()
+        .return_once(move || Ok(manifest_clone));
     let manifest = downloader
         .download_all()
         .await
@@ -438,13 +508,23 @@ async fn test_synchronise_flattenfiles_uploads_codebase_files() {
     let temp_out = tempdir().unwrap();
     let output_dir = temp_out.path().to_path_buf();
 
-    let download = DownloadConfig {
-        output_dir: output_dir.clone(),
-        sources: vec![SourceAction::Git(GitSource {
-            repo_url: "git@github.com:kasbuunk/llm-bucket.git".to_string(),
-            reference: None,
-        })],
+    let git_source = SourceAction::Git(GitSource {
+        repo_url: "git@github.com:kasbuunk/llm-bucket.git".to_string(),
+        reference: None,
+    });
+    let git_dir = output_dir.join("git_git@github.com_kasbuunk_llm-bucket.git_main");
+    let downloaded_manifest = DownloadedManifest {
+        sources: vec![DownloadedSource {
+            logical_name: "git@github.com:kasbuunk/llm-bucket.git".into(),
+            local_path: git_dir.clone(),
+            original_source: git_source.clone(),
+        }],
     };
+
+    // Populate a flattened codebase structure, as expected by flattenfiles processor
+    std::fs::create_dir_all(&git_dir).unwrap();
+    std::fs::write(git_dir.join("main.rs"), "// main rust file").unwrap();
+    std::fs::write(git_dir.join("README.md"), "# README for flattenfiles").unwrap();
 
     let process = ProcessConfig {
         kind: ProcessorKind::FlattenFiles,
@@ -476,7 +556,11 @@ async fn test_synchronise_flattenfiles_uploads_codebase_files() {
         })
     });
 
-    let downloader = llm_bucket_core::download::DefaultDownloader::new(download);
+    let mut downloader = MockDownloader::new();
+    let manifest_clone = downloaded_manifest.clone();
+    downloader
+        .expect_download_all()
+        .return_once(move || Ok(manifest_clone));
     let manifest = downloader
         .download_all()
         .await

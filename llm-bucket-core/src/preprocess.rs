@@ -1,32 +1,3 @@
-#![allow(dead_code)]
-//! Processing Pipeline: Convert downloaded sources into normalized uploadable items (e.g., PDFs, file trees).
-//!
-//! This module defines the processing architecture for post-download transformation of repository/content sources.
-//! Primary use cases include flattening all files in a repo or converting specific documents (like README.md)
-//! into one or more output formats (e.g., PDF).
-//!
-//! # Architecture
-//! - Every processing operation is parameterized by a [`ProcessConfig`]: what transformation kind to use.
-//! - Supported processor kinds are enumerated in [`ProcessorKind`] (e.g., `ReadmeToPDF`, `FlattenFiles`), chosen per pipeline run.
-//! - Inputs are [`ProcessInput`]: logical name and path to working tree/repo folder.
-//! - Outputs are [`ExternalSourceInput`]: source name and a vector of [`ExternalItemInput`] representing output artifacts (files, PDFs).
-//! - All error flows wrap in [`ProcessError`] for diagnostics and logging.
-//!
-//! # Extension & Strategy
-//! To add a new processor: implement a new `ProcessorKind` variant, extend the main `process` function, and declare input/output contract for that processor. Updating the main CLI selection will auto-enable your logic.
-//!
-//! # Example
-//! ```rust
-//! use llm_bucket_core::preprocess::{ProcessConfig, ProcessorKind, ProcessInput, process};
-//! let cfg = ProcessConfig { kind: ProcessorKind::FlattenFiles };
-//! let input = ProcessInput { name: "repo", repo_path: ... };
-//! let output = process(&cfg, input).unwrap();
-//! // output.external_items contains uploadable file data.
-//! ```
-//!
-//! The design ensures all post-download normalization logic is centralized for easy downstream ingestion and extensibility.
-//!
-
 use crate::code_to_pdf::{code_file_to_pdf, CodeToPdfError};
 use std::path::PathBuf;
 use tempfile;
@@ -116,7 +87,6 @@ pub fn process(
     result
 }
 
-///
 fn process_readme_to_pdf(input: ProcessInput) -> Result<ExternalSourceInput, ProcessError> {
     let readme_path = input.repo_path.join("README.md");
     debug!(repo_path = %input.repo_path.display(), "Looking for README.md in repo path");
