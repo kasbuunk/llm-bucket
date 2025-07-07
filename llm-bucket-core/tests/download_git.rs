@@ -1,14 +1,13 @@
 // Integration test for llm-bucket
 // This test sets up a Config with a public git source, runs download::run, and asserts output dir populated.
 
-use llm_bucket_core::config::Config;
-use llm_bucket_core::download::{GitSource, SourceAction};
+use llm_bucket_core::download::{DownloadConfig, GitSource, SourceAction};
 use std::fs;
 use std::path::Path;
 
 struct TestCase {
     name: &'static str,
-    config: Config,
+    config: DownloadConfig,
     expected_dirs: Vec<String>,
 }
 
@@ -41,7 +40,7 @@ async fn test_download_populates_directory_table_driven() {
     let test_cases = vec![
         TestCase {
             name: "single public git repo: llm-bucket",
-            config: Config {
+            config: DownloadConfig {
                 output_dir: output_dir.into(),
                 sources: vec![SourceAction::Git(GitSource {
                     repo_url: repo_url.into(),
@@ -52,7 +51,7 @@ async fn test_download_populates_directory_table_driven() {
         },
         TestCase {
             name: "single public git repo: ai",
-            config: Config {
+            config: DownloadConfig {
                 output_dir: output_dir.into(),
                 sources: vec![SourceAction::Git(GitSource {
                     repo_url: ai_repo_url.into(),
@@ -63,7 +62,7 @@ async fn test_download_populates_directory_table_driven() {
         },
         TestCase {
             name: "private git repo via SSH",
-            config: Config {
+            config: DownloadConfig {
                 output_dir: output_dir.into(),
                 sources: vec![SourceAction::Git(GitSource {
                     repo_url: private_ssh_url.into(),
@@ -74,7 +73,7 @@ async fn test_download_populates_directory_table_driven() {
         },
         TestCase {
             name: "two sources: llm-bucket and ai",
-            config: Config {
+            config: DownloadConfig {
                 output_dir: output_dir.into(),
                 sources: vec![
                     SourceAction::Git(GitSource {
@@ -91,7 +90,7 @@ async fn test_download_populates_directory_table_driven() {
         },
         TestCase {
             name: "two refs in llm-bucket repo",
-            config: Config {
+            config: DownloadConfig {
                 output_dir: output_dir.into(),
                 sources: vec![
                     SourceAction::Git(GitSource {
@@ -151,7 +150,7 @@ async fn test_download_populates_directory_table_driven() {
 async fn test_download_empty_sources_no_error() {
     let output_dir = "./tmp/test_output_empty_sources";
     let _ = std::fs::remove_dir_all(output_dir);
-    let config = Config {
+    let config = DownloadConfig {
         output_dir: output_dir.into(),
         sources: vec![],
     };

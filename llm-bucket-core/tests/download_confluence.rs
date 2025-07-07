@@ -12,8 +12,7 @@
 //!
 //! If not present, test is skipped.
 
-use llm_bucket_core::config::Config;
-use llm_bucket_core::download::{ConfluenceSource, SourceAction};
+use llm_bucket_core::download::{ConfluenceSource, DownloadConfig, SourceAction};
 use std::{fs, path::Path};
 
 /// At test start, load dotenv so env variables are available!
@@ -26,7 +25,7 @@ fn required_env_var(key: &str) -> Option<String> {
     std::env::var(key).ok().filter(|v| !v.trim().is_empty())
 }
 
-fn confluence_test_config() -> Option<(Config, String)> {
+fn confluence_test_config() -> Option<(DownloadConfig, String)> {
     // Gather all required vars
     let base_url = required_env_var("CONFLUENCE_BASE_URL")?;
     let _api_email = required_env_var("CONFLUENCE_API_EMAIL")?; // not used directly but checked/needed
@@ -43,7 +42,7 @@ fn confluence_test_config() -> Option<(Config, String)> {
     let dummy_src = SourceAction::Confluence(confl_src_struct(base_url.clone(), space_key.clone()));
 
     Some((
-        Config {
+        DownloadConfig {
             output_dir: output_dir.into(),
             sources: vec![dummy_src],
         },

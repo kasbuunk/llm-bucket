@@ -55,12 +55,8 @@ impl DefaultDownloader {
 #[async_trait::async_trait]
 impl Downloader for DefaultDownloader {
     async fn download_all(&self) -> Result<DownloadedManifest, DownloadError> {
-        // Compose legacy config and run download
-        let legacy_config = crate::config::Config {
-            output_dir: self.config.output_dir.clone(),
-            sources: self.config.sources.clone(),
-        };
-        crate::download::run(&legacy_config).await.map_err(
+        // Run download with DownloadConfig directly
+        crate::download::run(&self.config).await.map_err(
             |e| -> Box<dyn std::error::Error + Send + Sync> {
                 format!("download::run failed: {:?}", e).into()
             },
@@ -101,7 +97,7 @@ impl Downloader for DefaultDownloader {
     }
 }
 
-pub async fn run(config: &crate::config::Config) -> Result<(), ()> {
+pub async fn run(config: &DownloadConfig) -> Result<(), ()> {
     // Now supports Git and Confluence sources
     for source in &config.sources {
         match source {

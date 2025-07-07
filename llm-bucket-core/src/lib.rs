@@ -23,7 +23,7 @@
 //!
 //! ## Example
 //! ```rust
-//! use llm_bucket_core::{config::Config, download, preprocess, synchronise};
+//! use llm_bucket_core::{download, preprocess, synchronise};
 //! // (Example code to show intended usage...)
 //! ```
 //!
@@ -32,7 +32,6 @@
 //!
 
 pub mod code_to_pdf;
-pub mod config;
 pub mod contract;
 pub mod download;
 pub mod preprocess;
