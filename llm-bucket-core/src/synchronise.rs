@@ -1,4 +1,36 @@
-//! Coordinating module for download-process-upload pipeline.
+//! High-level pipeline: orchestrates download → process → upload for repo sources.
+//!
+//! This module provides the top-level orchestration logic for "synchronising" all configured sources
+//! as described in the loaded config. It implements a coordinated pipeline that:
+//!   - Downloads each declared source (currently Git or Confluence) into a deterministic folder
+//!   - Processes downloads using a specified processor (e.g., flatten files, README→PDF, etc.)
+//!   - Uploads processed sources/items to a remote API/knowledge base via [`uploader::Uploader`]
+//!   - Aggregates and returns a report of what succeeded and failed.
+//!
+//! # Major Types
+//! - [`SynchroniseConfig`]: Bundles download and process config for a "run"
+//! - [`SynchroniseReport`]: Output report with all uploaded sources/items for downstream audit etc
+//!
+//! # Responsibilities
+//! - Atomic, fail-fast orchestration for a given config (if one source step fails, stops there)
+//! - Invokes logging throughout for traceability (see tracing spans/events)
+//! - Does not persist or mutate config files: all inputs are in-memory
+//!
+//! # Callable From
+//! - Used by both the CLI crate and integration tests
+//! - Expects a concrete (async) [`Uploader`] implementation for uploads
+//!
+//! # Extension Points
+//! - To add a new source type: extend `SourceAction` and ensure downstream `match` arms are updated
+//! - To add new pipeline logic (e.g., pre/post hooks or deduplication), inject at the orchestration step
+//!
+//! # Error Handling
+//! Each failed step (download, process, upload) returns immediately with a formatted error; callers should log and surface these to users/test logs
+//!
+//! # Navigation
+//! - Main entrypoint: [`synchronise`]
+//! - Supporting types: [`SynchroniseConfig`], [`SynchroniseReport`].
+//!
 
 use futures::future::try_join_all;
 use tracing::{debug, error, info};

@@ -1,5 +1,32 @@
 #![allow(unused)]
 
+//! # uploader: Universal interface for external source/item upload
+//!
+//! This module defines a single trait (`Uploader`) and concrete supporting types
+//! for uploading external sources (e.g. repositories, document spaces)
+//! and their items (files, documents) into a project knowledge bucket via
+//! an external API, local system, or a mock/test implementation.
+//!
+//! ## Interface & Extensibility
+//! - Implement the [`Uploader`] trait to create new upload clients (e.g. API, file-based).
+//! - All methods are async, returning results and using boxed error types.
+//! - Error handling is uniform: all API/caller errors return boxed trait objects.
+//! - Meant for both production code and robust mocking in tests.
+//!
+//! ## Mocking & Testing
+//! - The trait is annotated for `mockall` so consumers can generate deterministic mocks for unit/integration tests.
+//!
+//! ## Type Sources
+//! - Request and response types (e.g., `NewExternalSource`, `ExternalSource`, `NewExternalItem`, `ExternalItem`) are plain data; see docs for field descriptions.
+//!
+//! ## Example Usage
+//! - See the core binary crate or test suite for concrete implementors—API client, test-mock, etc.
+//!
+//! ## Adding New Upload Destinations
+//! - Implement the trait for your destination.
+//! - Ensure methods are infallible in their contract: convert all meaningful upstream errors to a boxed error.
+//! - Return concrete, understandable error variants on user/config/connection issues.
+
 use async_trait::async_trait;
 
 use mockall::{automock, predicate::*};

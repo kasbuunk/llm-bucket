@@ -1,11 +1,35 @@
-#![doc = "llm-bucket-core: core logic library for llm-bucket."]
+#![doc = "llm-bucket-core: core logic and data models for the llm-bucket aggregator CLI."]
 
-//! This crate contains all open-source logic, data models and pipelines for llm-bucket.
-//! Proprietary upload or integration logic is not included here.
-//! Begin new modules as submodules below.
+//! # llm-bucket-core
 //!
-//! # Usage
-//! Add this as a dependency for all shared pipeline, processing, config, and sync code.
+//! This crate provides all primary domain logic, data models, and processing pipelines for use in `llm-bucket` workflows.
+//!
+//! - **Scope:** Only open-source pipeline, processing, config, and repository sync code is here.
+//!   *Proprietary upload/integration logic is handled outside this crate.*
+//!
+//! ## Architecture & Usage
+//!
+//! - This library is intended for maximum code reuse across the CLI, tests, and (potentially) other tools.
+//! - All fundamental types (e.g., configs, processor inputs/outputs) and clean-pipeline functions live here, with clear interfaces for extensibility.
+//!
+//! ## Major Modules
+//!
+//! - [`config`]: Typed config models loaded from YAML, including source definitions.
+//! - [`download`]: Download logic for source repositories (e.g., Git, Confluence), creating disk snapshots.
+//! - [`preprocess`]: Processing/conversion of downloaded repos to uploadable items (PDFs, file flattening, etc).
+//! - [`synchronise`]: High-level pipeline for end-to-end sync (download-process-upload/report).
+//! - [`uploader`]: Interface trait for uploading sources/items (mockable for test).
+//! - [`code_to_pdf`]: Minimal stub conversion of code/README to PDF files.
+//!
+//! ## Example
+//! ```rust
+//! use llm_bucket_core::{config::Config, download, preprocess, synchronise};
+//! // (Example code to show intended usage...)
+//! ```
+//!
+//! ## Contribution and Extending
+//! When adding a new source or pipeline, declare your data model and process logic in a new submodule, and extend root/aggregate orchestrators in this crate first, not in the CLI shell.
+//!
 
 pub mod code_to_pdf;
 pub mod config;

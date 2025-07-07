@@ -1,6 +1,27 @@
-//! Converts code files to PDF using an internal, statically-bundled monospaced font.
+//! # code_to_pdf
+//!
+//! Minimal stub module for converting plaintext code files (or README.md) into PDF format using a bundled monospaced font.
+//!
+//! **Purpose:** Provides a PDF export step for the pipeline and tests integration of future PDF generation routines. This is a placeholder; swap in upstream PDF generators here.
+//!
+//! - Exposes a simple contract: `code_file_to_pdf(input_path, output_path) -> Result<(), CodeToPdfError>`
+//! - Returns plain fake PDF data for testing (not a real PDF!)
+//! - Errors clearly on IO or empty input
+//!
+//! ## Extending
+//! Replace this implementation with a real PDF conversion crate as needed, ensuring the result contract and error types remain consistent so pipeline logic does not break.
+//!
+//! ## Error Handling
+//! - See `CodeToPdfError` for all returned variants. All errors should be handled at the process orchestration layer, not here.
+//!
+//! ## Usage Example
+//! ```rust
+//! use llm_bucket_core::code_to_pdf::code_file_to_pdf;
+//! let res = code_file_to_pdf("README.md".as_ref(), "README.pdf".as_ref());
+//! assert!(res.is_ok() || matches!(res, Err(CodeToPdfError::...)));
+//! ```
 
-use tracing::{info, error, debug};
+use tracing::{debug, error, info};
 
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -35,7 +56,7 @@ pub fn code_file_to_pdf(input_path: &Path, output_path: &Path) -> Result<(), Cod
         Ok(f) => {
             debug!(output = %output_path.display(), "Created output PDF file for writing");
             f
-        },
+        }
         Err(e) => {
             error!(error = ?e, output = %output_path.display(), "Failed to create output PDF file");
             return Err(CodeToPdfError::Io(e));

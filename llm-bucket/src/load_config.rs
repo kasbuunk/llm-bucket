@@ -1,3 +1,34 @@
+/// `load_config` module: Loads and adapts a static YAML config—including environment secret injection—into the internal SynchroniseConfig.
+///
+/// This module is the only place where untrusted YAML is parsed and mapped to rich, strongly-typed internal structs.
+///
+/// # Responsibilities
+/// - Parse user-supplied YAML configuration files into type-safe Rust structs
+/// - Map loosely-typed YAML keys (e.g., string processor kinds) to enums and rich types
+/// - Inject environment variables for secret fields (API tokens, bucket IDs) as needed
+/// - Ensure robust error messages for CLI and tests: any failure in loading must result in clear diagnostics.
+/// - Acts as the “adapter” layer decoupling input schemas from domain core
+///
+/// # Extension Guidance
+/// - To add a new source type or config key:
+///   1. Extend the intermediate (YAML-side) types and enums (e.g., SourceActionYaml)
+///   2. Add conversion logic mapping from YAML types to domain-core models
+///   3. Carefully validate that new config fields are surfaced to the SynchroniseConfig
+///
+/// # Errors
+/// All errors in this module use `anyhow::Error` for context-rich diagnostics, and are surfaced at the CLI boundary.
+///
+/// # Example
+/// ```rust
+/// let pipeline_config = load_config("path/to/config.yaml")?;
+/// ```
+///
+/// For accepted YAML schema, see the README.
+///
+/// ---
+///
+/// Internal implementation begins below.
+///
 use anyhow::{Context, Result};
 use llm_bucket_core::preprocess::{ProcessConfig, ProcessorKind};
 use llm_bucket_core::synchronise::{DownloadConfig, GitSource, SourceAction, SynchroniseConfig};

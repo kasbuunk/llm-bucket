@@ -1,3 +1,35 @@
+/// # llm-bucket CLI Interface (Module)
+///
+/// This module implements the full CLI interface for llm-bucket—handling command parsing,
+/// argument validation, main entrypoints, and user-visible invocations.
+///
+/// All core business logic (data models, pipelines, and processing) lives in the [`llm-bucket-core`] crate.
+/// This module is strictly for CLI glue, ergonomic argument exposure, and orchestration.
+///
+/// ## Features
+/// - Entry struct [`Cli`] defines all user-facing options and subcommands (see below).
+/// - Subcommand routing (e.g., `sync`) and argument validation.
+/// - Async entrypoint (`run`) for programmatic invocation and integration testing.
+/// - Logging, tracing, and structured error output at CLI level.
+///
+/// ## How To Use
+/// - For command-line users: use the installed `llm-bucket` binary with `--help`.
+/// - For programmatic/integration use: call [`run`] with a constructed [`Cli`].
+///
+/// ## Extending
+/// When adding features or subcommands, update [`Commands`] below
+/// and keep all non-trivial business logic inside `llm-bucket-core`.
+///
+/// ---
+///
+/// See crate root docs and [`llm-bucket-core`] for overall architecture.
+///
+/// ---
+///
+/// [`llm-bucket-core`]: ../../llm-bucket-core/
+/// [`Cli`]: struct.Cli.html
+/// [`run`]: fn.run.html
+/// [`Commands`]: enum.Commands.html
 use crate::load_config::load_config;
 use crate::upload::LLMClient;
 use anyhow::Result;

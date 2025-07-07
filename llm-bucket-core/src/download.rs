@@ -1,8 +1,8 @@
 use std::fs;
-use std::path::Path;
-use std::process::Command;
 use std::fs::File;
 use std::io::Write;
+use std::path::Path;
+use std::process::Command;
 
 pub async fn run(config: &crate::config::Config) -> Result<(), ()> {
     // Now supports Git and Confluence sources
@@ -15,13 +15,9 @@ pub async fn run(config: &crate::config::Config) -> Result<(), ()> {
 
                 // Build deterministic subdirectory for this git source:
                 // use the full repo_url (including https:// or git@), replace / and : with _
-                let source_dir_name = format!(
-                    "git_{}_{}",
-                    repo_url,
-                    reference
-                )
-                .replace('/', "_")
-                .replace(':', "_");
+                let source_dir_name = format!("git_{}_{}", repo_url, reference)
+                    .replace('/', "_")
+                    .replace(':', "_");
                 let full_source_path = Path::new(&out_dir).join(&source_dir_name);
 
                 // If full_source_path exists, remove it for a clean clone
@@ -74,7 +70,7 @@ pub async fn run(config: &crate::config::Config) -> Result<(), ()> {
                             status = ?s,
                             "Successfully cloned git repository"
                         );
-                    },
+                    }
                     Ok(s) => {
                         tracing::error!(
                             repo_url = repo_url,
@@ -113,7 +109,7 @@ pub async fn run(config: &crate::config::Config) -> Result<(), ()> {
                             status = ?s,
                             "Checked out git reference"
                         );
-                        continue
+                        continue;
                     }
                     Ok(s) => {
                         tracing::error!(
@@ -139,7 +135,7 @@ pub async fn run(config: &crate::config::Config) -> Result<(), ()> {
             crate::config::SourceAction::Confluence(confluence_source) => {
                 use reqwest::Client;
                 use std::fs;
-                use tracing::{info, error};
+                use tracing::{error, info};
 
                 let base_url = confluence_source.base_url.trim_end_matches('/'); // avoid "//"
                 let space_key = &confluence_source.space_key;
@@ -149,10 +145,9 @@ pub async fn run(config: &crate::config::Config) -> Result<(), ()> {
                     std::env::var("CONFLUENCE_API_TOKEN").expect("CONFLUENCE_API_TOKEN missing");
 
                 let out_dir = &config.output_dir;
-                let source_dir_name = format!(
-                    "confluence_{}_{}",
-                    base_url, space_key
-                ).replace('/', "_").replace(':', "_");
+                let source_dir_name = format!("confluence_{}_{}", base_url, space_key)
+                    .replace('/', "_")
+                    .replace(':', "_");
                 let full_source_path = Path::new(&out_dir).join(&source_dir_name);
 
                 // Clean existing if present
@@ -190,7 +185,10 @@ pub async fn run(config: &crate::config::Config) -> Result<(), ()> {
                 match response {
                     Ok(resp) => {
                         let status = resp.status();
-                        let text = resp.text().await.unwrap_or_else(|_| String::from("<Failed to decode response body>"));
+                        let text = resp
+                            .text()
+                            .await
+                            .unwrap_or_else(|_| String::from("<Failed to decode response body>"));
                         if !status.is_success() {
                             error!(
                                 status = %status,
@@ -204,11 +202,10 @@ pub async fn run(config: &crate::config::Config) -> Result<(), ()> {
                             return Err(());
                         }
                         let space_json_path = full_source_path.join("space.json");
-                        let mut f = File::create(&space_json_path)
-                            .map_err(|e| {
-                                error!(error=?e, file=?space_json_path, "Failed to create space.json");
-                                ()
-                            })?;
+                        let mut f = File::create(&space_json_path).map_err(|e| {
+                            error!(error=?e, file=?space_json_path, "Failed to create space.json");
+                            ()
+                        })?;
                         f.write_all(text.as_bytes()).map_err(|e| {
                             error!(error=?e, file=?space_json_path, "Failed to write space.json");
                             ()
@@ -222,7 +219,10 @@ pub async fn run(config: &crate::config::Config) -> Result<(), ()> {
                             let mut name = parts
                                 .iter()
                                 .map(|s| {
-                                    let s = s.replace(&['/', '\\', ':', '*', '?', '"', '<', '>', '|'][..], "_");
+                                    let s = s.replace(
+                                        &['/', '\\', ':', '*', '?', '"', '<', '>', '|'][..],
+                                        "_",
+                                    );
                                     let s = s.replace(std::path::MAIN_SEPARATOR, "_");
                                     let s = s.replace("__", "_");
                                     s
@@ -280,15 +280,24 @@ pub async fn run(config: &crate::config::Config) -> Result<(), ()> {
                             }
 
                             // Expect pages in "results" array and metadata in "_links" (possibly "next" link)
-                            let results = json_val.get("results").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+                            let results = json_val
+                                .get("results")
+                                .and_then(|v| v.as_array())
+                                .cloned()
+                                .unwrap_or_default();
                             let size = results.len();
 
                             // Push as many as needed (if there's a cap) or all
                             if let Some(limit) = page_limit {
-                                let remaining = if pages.len() >= limit { 0 } else { limit - pages.len() };
+                                let remaining = if pages.len() >= limit {
+                                    0
+                                } else {
+                                    limit - pages.len()
+                                };
                                 if remaining > 0 {
                                     // Take up to remaining
-                                    let to_add = results.into_iter().take(remaining).collect::<Vec<_>>();
+                                    let to_add =
+                                        results.into_iter().take(remaining).collect::<Vec<_>>();
                                     pages.extend(to_add);
                                 }
                                 if pages.len() >= limit {
@@ -318,7 +327,10 @@ pub async fn run(config: &crate::config::Config) -> Result<(), ()> {
 
                         // Directory creation & writing markdown files
                         for page in pages {
-                            let title = page.get("title").and_then(|v| v.as_str()).unwrap_or("untitled");
+                            let title = page
+                                .get("title")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("untitled");
                             let body_md = page
                                 .get("body")
                                 .and_then(|b| b.get("storage"))
@@ -328,7 +340,9 @@ pub async fn run(config: &crate::config::Config) -> Result<(), ()> {
 
                             // Get the ancestor titles for hierarchy
                             let mut hierarchy: Vec<&str> = Vec::new();
-                            if let Some(ancestors) = page.get("ancestors").and_then(|v| v.as_array()) {
+                            if let Some(ancestors) =
+                                page.get("ancestors").and_then(|v| v.as_array())
+                            {
                                 for anc in ancestors {
                                     if let Some(t) = anc.get("title").and_then(|t| t.as_str()) {
                                         hierarchy.push(t);
@@ -347,7 +361,10 @@ pub async fn run(config: &crate::config::Config) -> Result<(), ()> {
                                 // For a proper solution, use a crate (html2md or ammonia, etc.), but here is quick & dirty:
                                 let mut md = String::from(html);
                                 for i in (1..=6).rev() {
-                                    md = md.replace(&format!("<h{i}>"), &format!("\n{} ", "#".repeat(i)));
+                                    md = md.replace(
+                                        &format!("<h{i}>"),
+                                        &format!("\n{} ", "#".repeat(i)),
+                                    );
                                     md = md.replace(&format!("</h{i}>"), "\n");
                                 }
                                 md = md.replace("<p>", "\n\n").replace("</p>", "\n");

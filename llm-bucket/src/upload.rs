@@ -1,3 +1,23 @@
+#![doc = "Uploader integration for CLI and core: bridges trait abstraction to actual API client, facilitating upload of sources/items to external endpoint."]
+//
+//! # Uploader Integration (CLI <-> Core)
+//!
+//! This module provides the bridge between the CLI workflow and the upload API abstraction in
+//! [`llm-bucket-core::uploader`]. It wires up the `Uploader` trait for real use against a remote
+//! API (the ChatNS backend), and provides the `LLMClient` used by the CLI for networked uploads.
+//!
+//! - Use this module to implement or invoke uploading logic in the main CLI binary.
+//! - The [`Uploader`] trait is designed for async and testable usage; see core docs for API contract.
+//! - See also: [llm-bucket-core::uploader] for trait, types, and mock/test behavior.
+//!
+//! ## Client Usage
+//!
+//! - Construct [`LLMClient`] using environment variables (`BUCKET_ID`, `OCP_APIM_SUBSCRIPTION_KEY`).
+//! - Use trait methods for end-to-end upload (create_source, create_item, list_sources, etc.)
+//! - All transport, serialization, and error handling are encapsulated in the client implementation.
+//!
+//! For full trait documentation and item/source contract, see core's [`uploader`] module.
+
 use async_trait::async_trait;
 
 /// Abstraction for uploading sources (repositories) and items (files) to the ChatNS API backend.
