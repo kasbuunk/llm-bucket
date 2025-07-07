@@ -1,8 +1,6 @@
 use llm_bucket::upload::NewExternalSource;
 use llm_bucket_core::uploader::Uploader;
-use openapi::models::ProcessingState;
 use serial_test::serial;
-use uuid::Uuid;
 
 #[tokio::test]
 async fn test_create_external_source_succeeds() {
