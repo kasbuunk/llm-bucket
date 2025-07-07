@@ -13,6 +13,7 @@ pub struct DownloadConfig {
 
 /// Selects the type of source for download (Git, Confluence, etc.)
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
 pub enum SourceAction {
     Git(GitSource),
     Confluence(ConfluenceSource),
@@ -36,6 +37,69 @@ pub struct GitSource {
 }
 
 // Export source types and config for use outside this module
+
+use crate::contract::{DownloadError, DownloadedManifest, DownloadedSource, Downloader};
+
+/// DefaultDownloader holds a DownloadConfig (sources and output_dir) and delegates to download::run.
+/// After downloading, it produces a DownloadedManifest describing all downloaded sources and local paths.
+pub struct DefaultDownloader {
+    config: DownloadConfig,
+}
+
+impl DefaultDownloader {
+    pub fn new(config: DownloadConfig) -> Self {
+        Self { config }
+    }
+}
+
+#[async_trait::async_trait]
+impl Downloader for DefaultDownloader {
+    async fn download_all(&self) -> Result<DownloadedManifest, DownloadError> {
+        // Compose legacy config and run download
+        let legacy_config = crate::config::Config {
+            output_dir: self.config.output_dir.clone(),
+            sources: self.config.sources.clone(),
+        };
+        crate::download::run(&legacy_config).await.map_err(
+            |e| -> Box<dyn std::error::Error + Send + Sync> {
+                format!("download::run failed: {:?}", e).into()
+            },
+        )?;
+        // Now, build the DownloadedManifest with deterministic paths matched to each source.
+        let mut sources = Vec::new();
+        for source in &self.config.sources {
+            let (logical_name, local_path) = match source {
+                SourceAction::Git(git) => {
+                    let reference = git.reference.as_deref().unwrap_or("main");
+                    let dir_name = format!("git_{}_{}", git.repo_url, reference)
+                        .replace('/', "_")
+                        .replace(':', "_");
+                    let full_path = self.config.output_dir.join(dir_name);
+                    (git.repo_url.clone(), full_path)
+                }
+                SourceAction::Confluence(confluence) => {
+                    let dir_name = format!(
+                        "confluence_{}_{}",
+                        confluence.base_url, confluence.space_key
+                    )
+                    .replace('/', "_")
+                    .replace(':', "_");
+                    let full_path = self.config.output_dir.join(dir_name);
+                    (
+                        format!("{}:{}", confluence.base_url, confluence.space_key),
+                        full_path,
+                    )
+                }
+            };
+            sources.push(DownloadedSource {
+                logical_name,
+                local_path,
+                original_source: source.clone(),
+            });
+        }
+        Ok(DownloadedManifest { sources })
+    }
+}
 
 pub async fn run(config: &crate::config::Config) -> Result<(), ()> {
     // Now supports Git and Confluence sources

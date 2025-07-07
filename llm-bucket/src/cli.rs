@@ -1,4 +1,3 @@
-/// # llm-bucket CLI Interface (Module)
 ///
 /// This module implements the full CLI interface for llm-bucket—handling command parsing,
 /// argument validation, main entrypoints, and user-visible invocations.
@@ -34,6 +33,8 @@ use crate::load_config::load_config;
 use crate::upload::LLMClient;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+/// # llm-bucket CLI Interface (Module)
+use llm_bucket_core::contract::Downloader;
 use llm_bucket_core::synchronise::synchronise;
 use std::path::PathBuf;
 
@@ -70,7 +71,24 @@ pub async fn run(cli: Cli) -> Result<()> {
             tracing::info!(command = "sync", "Starting synchronisation process");
             let uploader =
                 LLMClient::new_from_env().expect("Failed to construct uploader from env");
-            match synchronise(&config, &uploader).await {
+            // Here, config is the loaded YAML Config, which has output_dir and sources fields.
+            // Map process section to ProcessConfig before passing.
+            let process_config = llm_bucket_core::preprocess::ProcessConfig {
+                kind: llm_bucket_core::preprocess::ProcessorKind::from(
+                    config.process.kind.as_str(),
+                ),
+            };
+            let output_dir = config.download.output_dir.clone();
+            let sources = config.download.sources.clone();
+            let download_config = llm_bucket_core::download::DownloadConfig {
+                output_dir,
+                sources,
+            };
+            let downloader = llm_bucket_core::download::DefaultDownloader::new(download_config);
+            let manifest = Downloader::download_all(&downloader)
+                .await
+                .map_err(|e| anyhow::Error::msg(format!("Download failed: {e:?}")))?;
+            match synchronise(&process_config, &uploader, &manifest.sources).await {
                 Ok(report) => {
                     tracing::info!(command = "sync", ?report, "Synchronisation complete");
                     Ok(())

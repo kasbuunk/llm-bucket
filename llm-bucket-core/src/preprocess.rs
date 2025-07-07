@@ -47,6 +47,22 @@ pub enum ProcessorKind {
     // Future: CodeToPDF, DirectoryToPDF, etc
 }
 
+impl From<&str> for ProcessorKind {
+    fn from(s: &str) -> Self {
+        match s {
+            "ReadmeToPDF" | "readme_to_pdf" | "readme2pdf" => ProcessorKind::ReadmeToPDF,
+            "FlattenFiles" | "flattenfiles" | "flatten_files" => ProcessorKind::FlattenFiles,
+            other => {
+                tracing::warn!(
+                    kind = other,
+                    "Unknown processor kind, defaulting to FlattenFiles"
+                );
+                ProcessorKind::FlattenFiles
+            }
+        }
+    }
+}
+
 /// Input for processing step: a single source location (name, local path, etc)
 pub struct ProcessInput {
     pub name: String,

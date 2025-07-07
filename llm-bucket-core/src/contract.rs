@@ -75,6 +75,36 @@ pub struct ExternalItem {
     pub url: String,
 }
 
+/// Error type for Downloader trait (simple boxed error for now)
+pub type DownloadError = Box<dyn std::error::Error + Send + Sync>;
+
+/// Manifest returned from a download operation, describing exactly what was downloaded and where.
+#[derive(Debug, Clone)]
+pub struct DownloadedManifest {
+    pub sources: Vec<DownloadedSource>,
+}
+
+/// Describes a successfully downloaded source in the manifest.
+#[derive(Debug, Clone)]
+pub struct DownloadedSource {
+    /// Human-readable logical name (e.g., repo URL or space name)
+    pub logical_name: String,
+    /// Filesystem path to the downloaded/extracted source directory
+    pub local_path: std::path::PathBuf,
+    /// Original declared source action (for audit)
+    pub original_source: crate::download::SourceAction,
+}
+
+/// Trait for downloading all sources as specified in configuration.
+/// Allows plugging in real, test, or mockable downloaders (like with Uploader).
+#[cfg_attr(any(test, feature = "test-export-mocks"), automock)]
+#[async_trait]
+pub trait Downloader: Send + Sync {
+    /// Download all sources from the downloader's config into the configured output directory,
+    /// returning a manifest of what was downloaded and where.
+    async fn download_all(&self) -> Result<DownloadedManifest, DownloadError>;
+}
+
 /// Trait for uploading and managing external sources/items in a bucket.
 /// The implementor is responsible for connecting to a backing service or storage API.
 ///

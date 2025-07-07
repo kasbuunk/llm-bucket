@@ -5,9 +5,10 @@ use serial_test::serial;
 use std::path::Path;
 use tempfile::tempdir;
 
+use llm_bucket_core::contract::Downloader;
 use llm_bucket_core::download::{ConfluenceSource, DownloadConfig, GitSource, SourceAction};
 use llm_bucket_core::preprocess::{ProcessConfig, ProcessorKind};
-use llm_bucket_core::synchronise::{empty_bucket, synchronise, SynchroniseConfig};
+use llm_bucket_core::synchronise::{empty_bucket, synchronise};
 
 fn ensure_env_loaded_from_workspace() {
     // Loads .env from the workspace root regardless of cwd.
@@ -70,9 +71,12 @@ async fn test_synchronise_readme_to_pdf_upload() {
             })
         });
 
-    let config = SynchroniseConfig { download, process };
-
-    let res = synchronise(&config, &uploader).await;
+    let downloader = llm_bucket_core::download::DefaultDownloader::new(download);
+    let manifest = downloader
+        .download_all()
+        .await
+        .expect("Download should succeed");
+    let res = synchronise(&process, &uploader, &manifest.sources).await;
     assert!(
         res.is_ok(),
         "Synchronise should succeed in ReadmeToPDF mode"
@@ -199,9 +203,12 @@ async fn test_synchronise_confluence_to_pdf_upload() {
         })
     });
 
-    let config = SynchroniseConfig { download, process };
-
-    let res = synchronise(&config, &uploader).await;
+    let downloader = llm_bucket_core::download::DefaultDownloader::new(download);
+    let manifest = downloader
+        .download_all()
+        .await
+        .expect("Download should succeed");
+    let res = synchronise(&process, &uploader, &manifest.sources).await;
     assert!(
         res.is_ok(),
         "Synchronise should succeed for Confluence source in ReadmeToPDF mode"
@@ -306,9 +313,12 @@ async fn test_synchronise_removes_existing_sources_before_upload() {
     let process = ProcessConfig {
         kind: ProcessorKind::ReadmeToPDF,
     };
-    let config = SynchroniseConfig { download, process };
-
-    let report = synchronise(&config, &uploader)
+    let downloader = llm_bucket_core::download::DefaultDownloader::new(download);
+    let manifest = downloader
+        .download_all()
+        .await
+        .expect("Download should succeed");
+    let report = synchronise(&process, &uploader, &manifest.sources)
         .await
         .expect("Synchronise should succeed");
 
@@ -389,15 +399,17 @@ async fn test_synchronise_multiple_sources_reports_each_uploaded() {
         })
     });
 
-    let config = SynchroniseConfig {
-        download: DownloadConfig {
-            output_dir,
-            sources: vec![git_source, confluence_source],
-        },
-        process,
+    let tmp_outdir2 = tempdir().unwrap();
+    let download = llm_bucket_core::download::DownloadConfig {
+        output_dir: tmp_outdir2.path().to_path_buf(),
+        sources: vec![git_source, confluence_source],
     };
-
-    let result = synchronise(&config, &uploader).await;
+    let downloader = llm_bucket_core::download::DefaultDownloader::new(download);
+    let manifest = downloader
+        .download_all()
+        .await
+        .expect("Download should succeed");
+    let result = synchronise(&process, &uploader, &manifest.sources).await;
     assert!(
         result.is_ok(),
         "Synchronise should succeed for mixed sources"
@@ -464,9 +476,12 @@ async fn test_synchronise_flattenfiles_uploads_codebase_files() {
         })
     });
 
-    let config = SynchroniseConfig { download, process };
-
-    let res = synchronise(&config, &uploader).await;
+    let downloader = llm_bucket_core::download::DefaultDownloader::new(download);
+    let manifest = downloader
+        .download_all()
+        .await
+        .expect("Download should succeed");
+    let res = synchronise(&process, &uploader, &manifest.sources).await;
     assert!(
         res.is_ok(),
         "Synchronise with FlattenFiles should succeed in end-to-end integration"

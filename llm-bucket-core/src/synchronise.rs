@@ -4,7 +4,7 @@
 //! as described in the loaded config. It implements a coordinated pipeline that:
 //!   - Downloads each declared source (currently Git or Confluence) into a deterministic folder
 //!   - Processes downloads using a specified processor (e.g., flatten files, README→PDF, etc.)
-//!   - Uploads processed sources/items to a remote API/knowledge base via [`uploader::Uploader`]
+//!   - Uploads processed sources/items to a remote API/knowledge base via [`Uploader`] trait object
 //!   - Aggregates and returns a report of what succeeded and failed.
 //!
 //! # Major Types
@@ -18,17 +18,18 @@
 //!
 //! # Callable From
 //! - Used by both the CLI crate and integration tests
-//! - Expects a concrete (async) [`Uploader`] implementation for uploads
+//! - Expects async trait objects: both [`Uploader`] for uploads and [`Downloader`] for downloads
 //!
 //! # Extension Points
 //! - To add a new source type: extend `SourceAction` and ensure downstream `match` arms are updated
 //! - To add new pipeline logic (e.g., pre/post hooks or deduplication), inject at the orchestration step
+//! - To support new download/upload backends or test mocking, inject alternate implementations for the [`Downloader`] and [`Uploader`] traits.
 //!
 //! # Error Handling
 //! Each failed step (download, process, upload) returns immediately with a formatted error; callers should log and surface these to users/test logs
 //!
 //! # Navigation
-//! - Main entrypoint: [`synchronise`]
+//! - Main entrypoint: [`synchronise`], now parameterized over both [`Uploader`] and [`Downloader`] trait objects for full orchestration injection
 //! - Supporting types: [`SynchroniseConfig`], [`SynchroniseReport`].
 //!
 
@@ -44,15 +45,14 @@ pub use preprocess::{
     ProcessorKind,
 };
 
-use std::path::PathBuf;
 extern crate tokio; // Use extern crate for runtime context
 use crate::contract::Uploader; // use trait from core crate
 use crate::download::{ConfluenceSource, GitSource, SourceAction};
 
 /// The top-level synchronise configuration.
+/// Now only includes process config; downloader handles its own config (sources, output dir).
 #[derive(Debug)]
 pub struct SynchroniseConfig {
-    pub download: crate::download::DownloadConfig,
     pub process: ProcessConfig,
 }
 
@@ -75,9 +75,12 @@ pub struct ExternalItemReport {
     pub item_name: String,
 }
 
+/// Orchestrate the full synchronisation pipeline given a manifest of downloaded sources.
+/// The manifest typically comes from Downloader::download_all().
 pub async fn synchronise<U>(
-    config: &SynchroniseConfig,
+    process_config: &ProcessConfig,
     uploader: &U,
+    downloaded_sources: &[crate::contract::DownloadedSource],
 ) -> Result<SynchroniseReport, String>
 where
     U: Uploader + Sync,
@@ -90,66 +93,15 @@ where
     }
     info!("[SYNC] Emptied bucket before sync");
 
-    // Step 1-3: For each source, download, process, and upload; accumulate reports.
     let mut sources_report: Vec<ExternalSourceReport> = Vec::new();
 
-    for source in &config.download.sources {
-        // --- Step 1: Download ---
-        info!(source = ?source, "[SYNC] Starting download for source");
-        let dl_config = config::Config {
-            output_dir: config.download.output_dir.clone(),
-            sources: vec![match source {
-                SourceAction::Git(g) => SourceAction::Git(GitSource {
-                    repo_url: g.repo_url.clone(),
-                    reference: g.reference.clone(),
-                }),
-                SourceAction::Confluence(c) => SourceAction::Confluence(ConfluenceSource {
-                    base_url: c.base_url.clone(),
-                    space_key: c.space_key.clone(),
-                }),
-            }],
-        };
-        match download::run(&dl_config).await {
-            Ok(_) => {
-                info!(source = ?source, "[SYNC] Download succeeded");
-            }
-            Err(e) => {
-                error!(source = ?source, error = ?e, "[SYNC][ERROR] Download failed");
-                return Err(format!("Download failed for {:?}: {:?}", source, e));
-            }
-        }
-
-        // --- Step 2: Construct the source-specific processing input ---
-        let (name, local_path) = match source {
-            SourceAction::Git(git) => {
-                let reference = git.reference.as_deref().unwrap_or("main");
-                let dir_name = format!("git_{}_{}", git.repo_url, reference)
-                    .replace('/', "_")
-                    .replace(':', "_");
-                let full_path = config.download.output_dir.join(dir_name);
-                (git.repo_url.clone(), full_path)
-            }
-            SourceAction::Confluence(confluence) => {
-                let dir_name = format!(
-                    "confluence_{}_{}",
-                    confluence.base_url, confluence.space_key
-                )
-                .replace('/', "_")
-                .replace(':', "_");
-                let full_path = config.download.output_dir.join(dir_name);
-                (
-                    format!("{}:{}", confluence.base_url, confluence.space_key),
-                    full_path,
-                )
-            }
-        };
-
+    for downloaded in downloaded_sources {
         let process_input = ProcessInput {
-            name: name.clone(),
-            repo_path: local_path,
+            name: downloaded.logical_name.clone(),
+            repo_path: downloaded.local_path.clone(),
         };
-        info!(repo_name = %name, "[SYNC] Invoking processing step (process README to PDF)");
-        let source_for_upload = match preprocess::process(&config.process, process_input) {
+        info!(repo_name = %downloaded.logical_name, "[SYNC] Invoking processing step (process README to PDF)");
+        let source_for_upload = match preprocess::process(process_config, process_input) {
             Ok(src) => {
                 info!(
                     items = src.external_items.len(),
@@ -164,9 +116,6 @@ where
         };
 
         // --- Step 3: Upload ---
-        // The caller must now provide bucket_id as part of the process input or config, not via uploader trait.
-        // For now, assume the upload destination bucket_id must be discovered from a field attached to each source, or a global known constant for all uploads.
-        // Here, we try to get it from an environment variable for minimal disruption - in a true refactor it would be upstream.
         let bucket_id: i32 = std::env::var("BUCKET_ID")
             .expect("BUCKET_ID env var must be set for uploader")
             .parse()
@@ -198,8 +147,8 @@ where
             info!(filename = %ext_item.filename, "[SYNC][UPLOAD] Preparing upload for file");
             let content = String::from_utf8_lossy(&ext_item.content);
             let item_req = crate::contract::NewExternalItem {
-                content: &content, // Re-upload as UTF-8 text (for test, but might need to change to raw binary for real PDF upload)
-                url: &ext_item.filename, // Use the file name as URL for now
+                content: &content,
+                url: &ext_item.filename,
                 bucket_id: bucket_id as i64,
                 external_source_id: ext_source.external_source_id as i64,
                 processing_state: None,
