@@ -36,10 +36,7 @@
 use futures::future::try_join_all;
 use tracing::{debug, error, info};
 
-use crate::contract::{
-    ExternalItemInput, ExternalSourceInput, Preprocessor, ProcessConfig, ProcessError,
-    ProcessInput, ProcessorKind, Uploader,
-};
+use crate::contract::{Preprocessor, ProcessConfig, ProcessInput, Uploader};
 
 extern crate tokio; // Use extern crate for runtime context
 
