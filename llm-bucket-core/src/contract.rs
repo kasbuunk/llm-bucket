@@ -155,3 +155,83 @@ pub trait Uploader: Send + Sync {
         &self,
     ) -> Result<Vec<ExternalSource>, Box<dyn std::error::Error + Send + Sync>>;
 }
+
+/// Processor configuration - describes how the sources are processed into uploadable items.
+#[derive(Debug, Clone)]
+pub struct ProcessConfig {
+    pub kind: ProcessorKind,
+}
+
+/// Types/kinds of processing strategy.
+#[derive(Debug, Clone)]
+pub enum ProcessorKind {
+    /// For each source, outputs a single PDF (README.md converted)
+    ReadmeToPDF,
+    /// Flattens all files in the repo, uploading them with directory encoded in name
+    FlattenFiles,
+    // Future: CodeToPDF, DirectoryToPDF, etc
+}
+
+impl From<&str> for ProcessorKind {
+    fn from(s: &str) -> Self {
+        match s {
+            "ReadmeToPDF" | "readme_to_pdf" | "readme2pdf" => ProcessorKind::ReadmeToPDF,
+            "FlattenFiles" | "flattenfiles" | "flatten_files" => ProcessorKind::FlattenFiles,
+            other => {
+                tracing::warn!(
+                    kind = other,
+                    "Unknown processor kind, defaulting to FlattenFiles"
+                );
+                ProcessorKind::FlattenFiles
+            }
+        }
+    }
+}
+
+/// Input for processing step: a single source location (name, local path, etc)
+#[derive(Debug, Clone)]
+pub struct ProcessInput {
+    pub name: String,
+    pub repo_path: std::path::PathBuf,
+    // Extend as needed
+}
+
+/// Output for processing: A source with items to be uploaded
+#[derive(Debug, Clone)]
+pub struct ExternalSourceInput {
+    pub name: String,
+    pub external_items: Vec<ExternalItemInput>,
+}
+
+/// An item for upload: filename and content (e.g. PDF data)
+#[derive(Debug, Clone)]
+pub struct ExternalItemInput {
+    pub filename: String,
+    pub content: Vec<u8>,
+}
+
+#[derive(Debug)]
+pub enum ProcessError {
+    Io(std::io::Error),
+    NoReadme,
+    Other(String),
+}
+
+impl From<std::io::Error> for ProcessError {
+    fn from(e: std::io::Error) -> Self {
+        ProcessError::Io(e)
+    }
+}
+
+/// Trait for preprocessing (used in synchronise orchestration).
+/// Implemented by concrete processors and by mocks in testing.
+#[automock]
+#[async_trait]
+pub trait Preprocessor: Send + Sync {
+    /// Process an input source and return a processed external source with items, or error.
+    async fn process(
+        &self,
+        config: &ProcessConfig,
+        input: ProcessInput,
+    ) -> Result<ExternalSourceInput, ProcessError>;
+}

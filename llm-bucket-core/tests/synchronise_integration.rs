@@ -1,14 +1,25 @@
 use llm_bucket_core::contract::{
-    DownloadedManifest, DownloadedSource, ExternalItem, ExternalSource, MockDownloader,
-    MockUploader, NewExternalItem, NewExternalSource,
+    DownloadedManifest,
+    DownloadedSource,
+    ExternalItem,
+    ExternalItemInput,
+    ExternalSource,
+    ExternalSourceInput,
+    MockDownloader,
+    MockPreprocessor, // <-- Import the test mock!
+    MockUploader,
+    NewExternalItem,
+    NewExternalSource,
 };
+
 use serial_test::serial;
 use std::path::Path;
 use tempfile::tempdir;
 
 use llm_bucket_core::contract::Downloader;
+use llm_bucket_core::contract::{ProcessConfig, ProcessorKind};
+
 use llm_bucket_core::download::{ConfluenceSource, DownloadConfig, GitSource, SourceAction};
-use llm_bucket_core::preprocess::{ProcessConfig, ProcessorKind};
 use llm_bucket_core::synchronise::{empty_bucket, synchronise};
 
 fn ensure_env_loaded_from_workspace() {
@@ -53,12 +64,7 @@ async fn test_synchronise_readme_to_pdf_upload() {
 
     // MockUploader configuration
     let mut uploader = MockUploader::new();
-
-    // Synchronisation clears all existing sources first:
     uploader.expect_list_sources().return_once(|| Ok(vec![]));
-
-    // No source to delete, so .expect_delete_source_by_id() is not required for this test.
-
     uploader
         .expect_create_source()
         .returning(|req: NewExternalSource<'_>| {
@@ -70,7 +76,6 @@ async fn test_synchronise_readme_to_pdf_upload() {
                 updated_datetime: None,
             })
         });
-
     uploader
         .expect_create_item()
         .returning(|req: NewExternalItem<'_>| {
@@ -85,6 +90,19 @@ async fn test_synchronise_readme_to_pdf_upload() {
             })
         });
 
+    let mut mock_preprocessor = MockPreprocessor::new();
+    mock_preprocessor
+        .expect_process()
+        .returning(|_config, input| {
+            Ok(ExternalSourceInput {
+                name: input.name,
+                external_items: vec![ExternalItemInput {
+                    filename: "README.pdf".to_string(),
+                    content: vec![1, 2, 3, 4],
+                }],
+            })
+        });
+
     let mut downloader = MockDownloader::new();
     let manifest_clone = downloaded_manifest.clone();
     downloader
@@ -94,7 +112,7 @@ async fn test_synchronise_readme_to_pdf_upload() {
         .download_all()
         .await
         .expect("Download should succeed");
-    let res = synchronise(&process, &uploader, &manifest.sources).await;
+    let res = synchronise(&mock_preprocessor, &process, &uploader, &manifest.sources).await;
     assert!(
         res.is_ok(),
         "Synchronise should succeed in ReadmeToPDF mode"
@@ -190,7 +208,6 @@ async fn test_synchronise_confluence_to_pdf_upload() {
         }],
     };
 
-    // Populate dummy file(s) as FlattenFiles expects any file; use main.md
     std::fs::create_dir_all(&confluence_dir).unwrap();
     std::fs::write(
         confluence_dir.join("main.md"),
@@ -203,9 +220,7 @@ async fn test_synchronise_confluence_to_pdf_upload() {
     };
 
     let mut uploader = MockUploader::new();
-
     uploader.expect_list_sources().return_once(|| Ok(vec![]));
-
     uploader.expect_create_source().returning(|req| {
         Ok(ExternalSource {
             bucket_id: req.bucket_id,
@@ -215,7 +230,6 @@ async fn test_synchronise_confluence_to_pdf_upload() {
             updated_datetime: None,
         })
     });
-
     uploader.expect_create_item().returning(|req| {
         Ok(ExternalItem {
             content_hash: "hash-c".into(),
@@ -228,6 +242,21 @@ async fn test_synchronise_confluence_to_pdf_upload() {
         })
     });
 
+    let mut mock_preprocessor = MockPreprocessor::new();
+    mock_preprocessor
+        .expect_process()
+        .returning(|_config, input| {
+            Ok(ExternalSourceInput {
+                name: input.name.clone(),
+                external_items: vec![ExternalItemInput {
+                    filename: "main.md".to_string(),
+                    content: "# Confluence Export\nSome content here."
+                        .as_bytes()
+                        .to_vec(),
+                }],
+            })
+        });
+
     let mut downloader = MockDownloader::new();
     let manifest_clone = downloaded_manifest.clone();
     downloader
@@ -237,7 +266,7 @@ async fn test_synchronise_confluence_to_pdf_upload() {
         .download_all()
         .await
         .expect("Download should succeed");
-    let res = synchronise(&process, &uploader, &manifest.sources).await;
+    let res = synchronise(&mock_preprocessor, &process, &uploader, &manifest.sources).await;
     assert!(
         res.is_ok(),
         "Synchronise should succeed for Confluence source in ReadmeToPDF mode"
@@ -279,7 +308,6 @@ async fn test_synchronise_removes_existing_sources_before_upload() {
     let new_source_id = 9002;
     let mut uploader = MockUploader::new();
 
-    // Initial dummy source exists
     uploader.expect_list_sources().return_once(move || {
         Ok(vec![ExternalSource {
             bucket_id: 1,
@@ -317,7 +345,6 @@ async fn test_synchronise_removes_existing_sources_before_upload() {
         })
     });
 
-    // Second list_sources to verify dummy is gone (returns new one)
     uploader.expect_list_sources().return_once(move || {
         Ok(vec![ExternalSource {
             bucket_id: 1,
@@ -328,7 +355,6 @@ async fn test_synchronise_removes_existing_sources_before_upload() {
         }])
     });
 
-    // Prepare synchronisation config
     let temp_out = tempdir().unwrap();
     let output_dir = temp_out.path().to_path_buf();
 
@@ -352,13 +378,26 @@ async fn test_synchronise_removes_existing_sources_before_upload() {
         }],
     };
 
-    // Populate minimal README.md for processor to succeed
     std::fs::create_dir_all(&git_dir).unwrap();
     std::fs::write(
         git_dir.join("README.md"),
         "# Test README\nThis is a mock file.",
     )
     .unwrap();
+
+    let mut mock_preprocessor = MockPreprocessor::new();
+    mock_preprocessor
+        .expect_process()
+        .returning(|_config, input| {
+            Ok(ExternalSourceInput {
+                name: input.name,
+                external_items: vec![ExternalItemInput {
+                    filename: "README.pdf".to_string(),
+                    content: vec![6, 6, 6],
+                }],
+            })
+        });
+
     let manifest_clone = downloaded_manifest.clone();
     downloader
         .expect_download_all()
@@ -367,11 +406,10 @@ async fn test_synchronise_removes_existing_sources_before_upload() {
         .download_all()
         .await
         .expect("Download should succeed");
-    let report = synchronise(&process, &uploader, &manifest.sources)
+    let report = synchronise(&mock_preprocessor, &process, &uploader, &manifest.sources)
         .await
         .expect("Synchronise should succeed");
 
-    // Dummy source should be gone, only new one present
     assert!(
         report
             .sources
@@ -407,11 +445,7 @@ async fn test_synchronise_multiple_sources_reports_each_uploaded() {
     };
 
     let mut uploader = MockUploader::new();
-
-    // Empties all sources at the start
     uploader.expect_list_sources().return_once(|| Ok(vec![]));
-
-    // .expect_create_source() for both sources
     let mut create_source_count = 0;
     uploader
         .expect_create_source()
@@ -427,7 +461,6 @@ async fn test_synchronise_multiple_sources_reports_each_uploaded() {
             })
         });
 
-    // .expect_create_item() for both sources (allow at least up to 3 due to potential extra file from flattening)
     let mut item_count = 0;
     uploader.expect_create_item().returning(move |req| {
         item_count += 1;
@@ -443,7 +476,6 @@ async fn test_synchronise_multiple_sources_reports_each_uploaded() {
     });
 
     let tmp_outdir2 = tempdir().unwrap();
-
     let git_dir = tmp_outdir2
         .path()
         .join("git_git@github.com_kasbuunk_llm-bucket.git_main");
@@ -465,11 +497,32 @@ async fn test_synchronise_multiple_sources_reports_each_uploaded() {
         ],
     };
 
-    // Create minimal representative files for both sources, so flattenfiles processor works
     std::fs::create_dir_all(&git_dir).unwrap();
     std::fs::write(git_dir.join("lib.rs"), "// mock rust lib file").unwrap();
     std::fs::create_dir_all(&confluence_dir).unwrap();
     std::fs::write(confluence_dir.join("main.md"), "# Confluence item").unwrap();
+
+    let mut mock_preprocessor = MockPreprocessor::new();
+    mock_preprocessor
+        .expect_process()
+        .returning(|_config, input| {
+            let out_items = if input.name.contains("git@github.com") {
+                vec![ExternalItemInput {
+                    filename: "lib.rs".to_string(),
+                    content: b"// mock rust lib file".to_vec(),
+                }]
+            } else {
+                vec![ExternalItemInput {
+                    filename: "main.md".to_string(),
+                    content: b"# main doc file".to_vec(),
+                }]
+            };
+            Ok(ExternalSourceInput {
+                name: input.name,
+                external_items: out_items,
+            })
+        });
+
     let mut downloader = MockDownloader::new();
     let manifest_clone = downloaded_manifest.clone();
     downloader
@@ -479,7 +532,7 @@ async fn test_synchronise_multiple_sources_reports_each_uploaded() {
         .download_all()
         .await
         .expect("Download should succeed");
-    let result = synchronise(&process, &uploader, &manifest.sources).await;
+    let result = synchronise(&mock_preprocessor, &process, &uploader, &manifest.sources).await;
     assert!(
         result.is_ok(),
         "Synchronise should succeed for mixed sources"
@@ -521,7 +574,6 @@ async fn test_synchronise_flattenfiles_uploads_codebase_files() {
         }],
     };
 
-    // Populate a flattened codebase structure, as expected by flattenfiles processor
     std::fs::create_dir_all(&git_dir).unwrap();
     std::fs::write(git_dir.join("main.rs"), "// main rust file").unwrap();
     std::fs::write(git_dir.join("README.md"), "# README for flattenfiles").unwrap();
@@ -531,7 +583,6 @@ async fn test_synchronise_flattenfiles_uploads_codebase_files() {
     };
 
     let mut uploader = MockUploader::new();
-
     uploader.expect_list_sources().return_once(|| Ok(vec![]));
     uploader.expect_create_source().return_once(|req| {
         Ok(ExternalSource {
@@ -556,6 +607,25 @@ async fn test_synchronise_flattenfiles_uploads_codebase_files() {
         })
     });
 
+    let mut mock_preprocessor = MockPreprocessor::new();
+    mock_preprocessor
+        .expect_process()
+        .returning(|_config, input| {
+            Ok(ExternalSourceInput {
+                name: input.name,
+                external_items: vec![
+                    ExternalItemInput {
+                        filename: "main.rs".to_string(),
+                        content: b"// main rust file".to_vec(),
+                    },
+                    ExternalItemInput {
+                        filename: "lib.rs".to_string(),
+                        content: b"// lib code".to_vec(),
+                    },
+                ],
+            })
+        });
+
     let mut downloader = MockDownloader::new();
     let manifest_clone = downloaded_manifest.clone();
     downloader
@@ -565,7 +635,7 @@ async fn test_synchronise_flattenfiles_uploads_codebase_files() {
         .download_all()
         .await
         .expect("Download should succeed");
-    let res = synchronise(&process, &uploader, &manifest.sources).await;
+    let res = synchronise(&mock_preprocessor, &process, &uploader, &manifest.sources).await;
     assert!(
         res.is_ok(),
         "Synchronise with FlattenFiles should succeed in end-to-end integration"

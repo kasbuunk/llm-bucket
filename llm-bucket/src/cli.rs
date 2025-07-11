@@ -73,10 +73,8 @@ pub async fn run(cli: Cli) -> Result<()> {
                 LLMClient::new_from_env().expect("Failed to construct uploader from env");
             // Here, config is the loaded YAML Config, which has output_dir and sources fields.
             // Map process section to ProcessConfig before passing.
-            let process_config = llm_bucket_core::preprocess::ProcessConfig {
-                kind: llm_bucket_core::preprocess::ProcessorKind::from(
-                    config.process.kind.as_str(),
-                ),
+            let process_config = llm_bucket_core::contract::ProcessConfig {
+                kind: llm_bucket_core::contract::ProcessorKind::from(config.process.kind.as_str()),
             };
             let output_dir = config.download.output_dir.clone();
             let sources = config.download.sources.clone();
@@ -88,7 +86,9 @@ pub async fn run(cli: Cli) -> Result<()> {
             let manifest = Downloader::download_all(&downloader)
                 .await
                 .map_err(|e| anyhow::Error::msg(format!("Download failed: {e:?}")))?;
-            match synchronise(&process_config, &uploader, &manifest.sources).await {
+            // Use llm-bucket-core::preprocess::Processor as the main concrete Preprocessor
+            let processor = llm_bucket_core::preprocess::Processor {};
+            match synchronise(&processor, &process_config, &uploader, &manifest.sources).await {
                 Ok(report) => {
                     tracing::info!(command = "sync", ?report, "Synchronisation complete");
                     Ok(())

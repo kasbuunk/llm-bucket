@@ -36,14 +36,12 @@
 use futures::future::try_join_all;
 use tracing::{debug, error, info};
 
-use crate::preprocess;
-pub use preprocess::{
-    process, ExternalItemInput, ExternalSourceInput, ProcessConfig, ProcessError, ProcessInput,
-    ProcessorKind,
+use crate::contract::{
+    ExternalItemInput, ExternalSourceInput, Preprocessor, ProcessConfig, ProcessError,
+    ProcessInput, ProcessorKind, Uploader,
 };
 
 extern crate tokio; // Use extern crate for runtime context
-use crate::contract::Uploader; // use trait from core crate
 
 /// The top-level synchronise configuration.
 /// Now only includes process config; downloader handles its own config (sources, output dir).
@@ -73,12 +71,14 @@ pub struct ExternalItemReport {
 
 /// Orchestrate the full synchronisation pipeline given a manifest of downloaded sources.
 /// The manifest typically comes from Downloader::download_all().
-pub async fn synchronise<U>(
+pub async fn synchronise<P, U>(
+    preprocessor: &P,
     process_config: &ProcessConfig,
     uploader: &U,
     downloaded_sources: &[crate::contract::DownloadedSource],
 ) -> Result<SynchroniseReport, String>
 where
+    P: Preprocessor + Sync,
     U: Uploader + Sync,
 {
     info!("[SYNC] Starting full synchronisation pipeline");
@@ -96,8 +96,8 @@ where
             name: downloaded.logical_name.clone(),
             repo_path: downloaded.local_path.clone(),
         };
-        info!(repo_name = %downloaded.logical_name, "[SYNC] Invoking processing step (process README to PDF)");
-        let source_for_upload = match preprocess::process(process_config, process_input) {
+        info!(repo_name = %downloaded.logical_name, "[SYNC] Invoking processing step (process strategy)");
+        let source_for_upload = match preprocessor.process(process_config, process_input).await {
             Ok(src) => {
                 info!(
                     items = src.external_items.len(),
