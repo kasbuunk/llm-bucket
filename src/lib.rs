@@ -1,6 +1,6 @@
-#![doc = "llm-bucket-core: core logic and data models for the llm-bucket aggregator CLI."]
+#![doc = "llm-bucket: core logic and data models for the llm-bucket aggregator CLI."]
 
-//! # llm-bucket-core
+//! # llm-bucket
 //!
 //! This crate provides all primary domain logic, data models, and processing pipelines for use in `llm-bucket` workflows.
 //!
@@ -23,7 +23,7 @@
 //!
 //! ## Example
 //! ```rust
-//! use llm_bucket_core::{download, preprocess, synchronise};
+//! use llm_bucket::{download, preprocess, synchronise};
 //! // (Example code to show intended usage...)
 //! ```
 //!

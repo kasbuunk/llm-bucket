@@ -1,5 +1,5 @@
-use llm_bucket_core::contract::{ProcessConfig, ProcessInput, ProcessorKind};
-use llm_bucket_core::preprocess::process;
+use llm_bucket::contract::{ProcessConfig, ProcessInput, ProcessorKind};
+use llm_bucket::preprocess::process;
 use std::fs::File;
 use std::io::Write;
 use tempfile::tempdir;

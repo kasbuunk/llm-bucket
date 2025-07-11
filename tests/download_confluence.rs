@@ -12,7 +12,7 @@
 //!
 //! If not present, test is skipped.
 
-use llm_bucket_core::download::{ConfluenceSource, DownloadConfig, SourceAction};
+use llm_bucket::download::{ConfluenceSource, DownloadConfig, SourceAction};
 use std::{fs, path::Path};
 
 /// At test start, load dotenv so env variables are available!
@@ -101,7 +101,7 @@ async fn test_download_confluence_space_populates_dir() {
     let _ = fs::remove_dir_all(&config.output_dir);
 
     // Download!
-    let result = llm_bucket_core::download::run(&config).await;
+    let result = llm_bucket::download::run(&config).await;
 
     // This will fail until SourceAction::Confluence and implementation are added.
     assert!(
@@ -138,7 +138,7 @@ async fn test_downloads_all_confluence_pages_as_markdown() {
     std::env::set_var("CONFLUENCE_PAGE_LIMIT", "15");
 
     // Run Confluence download
-    let result = llm_bucket_core::download::run(&config).await;
+    let result = llm_bucket::download::run(&config).await;
     assert!(result.is_ok(), "download::run() should succeed");
 
     let subdir_path = Path::new(&config.output_dir).join(expected_dir);

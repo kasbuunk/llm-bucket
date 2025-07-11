@@ -3,7 +3,7 @@ use std::io::Write;
 use tempfile::tempdir;
 
 // Assume your public API looks like this and handles font management internally.
-use llm_bucket_core::code_to_pdf::code_file_to_pdf;
+use llm_bucket::code_to_pdf::code_file_to_pdf;
 
 #[test]
 fn test_code_file_to_pdf_creates_valid_pdf() {

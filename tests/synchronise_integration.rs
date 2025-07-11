@@ -1,4 +1,4 @@
-use llm_bucket_core::contract::{
+use llm_bucket::contract::{
     DownloadedManifest,
     DownloadedSource,
     ExternalItem,
@@ -16,16 +16,16 @@ use serial_test::serial;
 use std::path::Path;
 use tempfile::tempdir;
 
-use llm_bucket_core::contract::Downloader;
-use llm_bucket_core::contract::{ProcessConfig, ProcessorKind};
+use llm_bucket::contract::Downloader;
+use llm_bucket::contract::{ProcessConfig, ProcessorKind};
 
-use llm_bucket_core::download::{ConfluenceSource, DownloadConfig, GitSource, SourceAction};
-use llm_bucket_core::synchronise::{empty_bucket, synchronise};
+use llm_bucket::download::{ConfluenceSource, DownloadConfig, GitSource, SourceAction};
+use llm_bucket::synchronise::{empty_bucket, synchronise};
 
 fn ensure_env_loaded_from_workspace() {
     // Loads .env from the workspace root regardless of cwd.
     if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
-        let env_path = Path::new(&manifest_dir).join("../.env");
+        let env_path = Path::new(&manifest_dir).join("./.env");
         let _ = dotenvy::from_path(env_path);
     }
 }

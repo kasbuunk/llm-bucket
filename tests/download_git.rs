@@ -1,7 +1,7 @@
 // Integration test for llm-bucket
 // This test sets up a Config with a public git source, runs download::run, and asserts output dir populated.
 
-use llm_bucket_core::download::{DownloadConfig, GitSource, SourceAction};
+use llm_bucket::download::{DownloadConfig, GitSource, SourceAction};
 use std::fs;
 use std::path::Path;
 
@@ -118,7 +118,7 @@ async fn test_download_populates_directory_table_driven() {
         // Always clean output dir before running each case for isolation
         let _ = std::fs::remove_dir_all(output_dir);
 
-        let result = llm_bucket_core::download::run(&tc.config).await;
+        let result = llm_bucket::download::run(&tc.config).await;
         assert!(
             result.is_ok(),
             "{}: download::run() should succeed",
@@ -155,7 +155,7 @@ async fn test_download_empty_sources_no_error() {
         sources: vec![],
     };
 
-    let result = llm_bucket_core::download::run(&config).await;
+    let result = llm_bucket::download::run(&config).await;
     assert!(
         result.is_ok(),
         "download::run() should succeed with empty sources"
