@@ -1,5 +1,5 @@
 use llm_bucket::contract::{ProcessConfig, ProcessInput, ProcessorKind};
-use llm_bucket::preprocess::process;
+use llm_bucket::preprocess::Processor;
 use std::fs::File;
 use std::io::Write;
 use tempfile::tempdir;
@@ -23,7 +23,10 @@ fn test_process_readmetopdf_single_source_to_pdf_item() {
         kind: ProcessorKind::ReadmeToPDF,
     };
 
-    let out_source = process(&process_config, process_input).expect("Should succeed");
+    let processor = Processor::new(process_config);
+    let out_source = processor
+        .process_sync(process_input)
+        .expect("Should succeed");
 
     assert_eq!(out_source.external_items.len(), 1, "One item: README.pdf");
     let item = &out_source.external_items[0];

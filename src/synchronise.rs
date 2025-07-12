@@ -94,7 +94,7 @@ where
             repo_path: downloaded.local_path.clone(),
         };
         info!(repo_name = %downloaded.logical_name, "[SYNC] Invoking processing step (process strategy)");
-        let source_for_upload = match preprocessor.process(process_config, process_input).await {
+        let source_for_upload = match preprocessor.process(process_input).await {
             Ok(src) => {
                 info!(
                     items = src.external_items.len(),

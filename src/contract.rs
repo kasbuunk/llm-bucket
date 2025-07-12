@@ -229,9 +229,5 @@ impl From<std::io::Error> for ProcessError {
 #[async_trait]
 pub trait Preprocessor: Send + Sync {
     /// Process an input source and return a processed external source with items, or error.
-    async fn process(
-        &self,
-        config: &ProcessConfig,
-        input: ProcessInput,
-    ) -> Result<ExternalSourceInput, ProcessError>;
+    async fn process(&self, input: ProcessInput) -> Result<ExternalSourceInput, ProcessError>;
 }

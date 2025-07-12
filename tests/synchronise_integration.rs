@@ -91,17 +91,15 @@ async fn test_synchronise_readme_to_pdf_upload() {
         });
 
     let mut mock_preprocessor = MockPreprocessor::new();
-    mock_preprocessor
-        .expect_process()
-        .returning(|_config, input| {
-            Ok(ExternalSourceInput {
-                name: input.name,
-                external_items: vec![ExternalItemInput {
-                    filename: "README.pdf".to_string(),
-                    content: vec![1, 2, 3, 4],
-                }],
-            })
-        });
+    mock_preprocessor.expect_process().returning(|input| {
+        Ok(ExternalSourceInput {
+            name: input.name,
+            external_items: vec![ExternalItemInput {
+                filename: "README.pdf".to_string(),
+                content: vec![1, 2, 3, 4],
+            }],
+        })
+    });
 
     let mut downloader = MockDownloader::new();
     let manifest_clone = downloaded_manifest.clone();
@@ -243,19 +241,17 @@ async fn test_synchronise_confluence_to_pdf_upload() {
     });
 
     let mut mock_preprocessor = MockPreprocessor::new();
-    mock_preprocessor
-        .expect_process()
-        .returning(|_config, input| {
-            Ok(ExternalSourceInput {
-                name: input.name.clone(),
-                external_items: vec![ExternalItemInput {
-                    filename: "main.md".to_string(),
-                    content: "# Confluence Export\nSome content here."
-                        .as_bytes()
-                        .to_vec(),
-                }],
-            })
-        });
+    mock_preprocessor.expect_process().returning(|input| {
+        Ok(ExternalSourceInput {
+            name: input.name.clone(),
+            external_items: vec![ExternalItemInput {
+                filename: "main.md".to_string(),
+                content: "# Confluence Export\nSome content here."
+                    .as_bytes()
+                    .to_vec(),
+            }],
+        })
+    });
 
     let mut downloader = MockDownloader::new();
     let manifest_clone = downloaded_manifest.clone();
@@ -386,17 +382,15 @@ async fn test_synchronise_removes_existing_sources_before_upload() {
     .unwrap();
 
     let mut mock_preprocessor = MockPreprocessor::new();
-    mock_preprocessor
-        .expect_process()
-        .returning(|_config, input| {
-            Ok(ExternalSourceInput {
-                name: input.name,
-                external_items: vec![ExternalItemInput {
-                    filename: "README.pdf".to_string(),
-                    content: vec![6, 6, 6],
-                }],
-            })
-        });
+    mock_preprocessor.expect_process().returning(|input| {
+        Ok(ExternalSourceInput {
+            name: input.name,
+            external_items: vec![ExternalItemInput {
+                filename: "README.pdf".to_string(),
+                content: vec![6, 6, 6],
+            }],
+        })
+    });
 
     let manifest_clone = downloaded_manifest.clone();
     downloader
@@ -503,25 +497,23 @@ async fn test_synchronise_multiple_sources_reports_each_uploaded() {
     std::fs::write(confluence_dir.join("main.md"), "# Confluence item").unwrap();
 
     let mut mock_preprocessor = MockPreprocessor::new();
-    mock_preprocessor
-        .expect_process()
-        .returning(|_config, input| {
-            let out_items = if input.name.contains("git@github.com") {
-                vec![ExternalItemInput {
-                    filename: "lib.rs".to_string(),
-                    content: b"// mock rust lib file".to_vec(),
-                }]
-            } else {
-                vec![ExternalItemInput {
-                    filename: "main.md".to_string(),
-                    content: b"# main doc file".to_vec(),
-                }]
-            };
-            Ok(ExternalSourceInput {
-                name: input.name,
-                external_items: out_items,
-            })
-        });
+    mock_preprocessor.expect_process().returning(|input| {
+        let out_items = if input.name.contains("git@github.com") {
+            vec![ExternalItemInput {
+                filename: "lib.rs".to_string(),
+                content: b"// mock rust lib file".to_vec(),
+            }]
+        } else {
+            vec![ExternalItemInput {
+                filename: "main.md".to_string(),
+                content: b"# Main Markdown".to_vec(),
+            }]
+        };
+        Ok(ExternalSourceInput {
+            name: input.name,
+            external_items: out_items,
+        })
+    });
 
     let mut downloader = MockDownloader::new();
     let manifest_clone = downloaded_manifest.clone();
@@ -608,23 +600,21 @@ async fn test_synchronise_flattenfiles_uploads_codebase_files() {
     });
 
     let mut mock_preprocessor = MockPreprocessor::new();
-    mock_preprocessor
-        .expect_process()
-        .returning(|_config, input| {
-            Ok(ExternalSourceInput {
-                name: input.name,
-                external_items: vec![
-                    ExternalItemInput {
-                        filename: "main.rs".to_string(),
-                        content: b"// main rust file".to_vec(),
-                    },
-                    ExternalItemInput {
-                        filename: "lib.rs".to_string(),
-                        content: b"// lib code".to_vec(),
-                    },
-                ],
-            })
-        });
+    mock_preprocessor.expect_process().returning(|input| {
+        Ok(ExternalSourceInput {
+            name: input.name,
+            external_items: vec![
+                ExternalItemInput {
+                    filename: "main.rs".to_string(),
+                    content: b"// main rust file".to_vec(),
+                },
+                ExternalItemInput {
+                    filename: "lib.rs".to_string(),
+                    content: b"// lib rust file".to_vec(),
+                },
+            ],
+        })
+    });
 
     let mut downloader = MockDownloader::new();
     let manifest_clone = downloaded_manifest.clone();

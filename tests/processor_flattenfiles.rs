@@ -1,5 +1,5 @@
 use llm_bucket::contract::{ProcessConfig, ProcessInput, ProcessorKind};
-use llm_bucket::preprocess::process;
+use llm_bucket::preprocess::Processor;
 use std::fs::{create_dir_all, File};
 use std::io::Write;
 use tempfile::tempdir;
@@ -31,7 +31,10 @@ fn test_process_flattenfiles_flattens_recursively_with_double_underscore_separat
         kind: ProcessorKind::FlattenFiles, // <-- This variant must now exist!
     };
 
-    let out_source = process(&process_config, process_input).expect("Should succeed");
+    let processor = Processor::new(process_config);
+    let out_source = processor
+        .process_sync(process_input)
+        .expect("Should succeed");
 
     // Should contain both files, flattened!
     assert_eq!(out_source.external_items.len(), 2);
@@ -62,7 +65,7 @@ fn test_process_flattenfiles_flattens_recursively_with_double_underscore_separat
 #[test]
 fn test_flattenfiles_skips_dotgit_and_target_dirs() {
     use llm_bucket::contract::{ProcessConfig, ProcessInput, ProcessorKind};
-    use llm_bucket::preprocess::process;
+    use llm_bucket::preprocess::Processor;
     use std::fs::{create_dir_all, File};
     use std::io::Write;
     use tempfile::tempdir;
@@ -107,7 +110,10 @@ fn test_flattenfiles_skips_dotgit_and_target_dirs() {
         kind: ProcessorKind::FlattenFiles,
     };
 
-    let out_source = process(&process_config, process_input).expect("Should succeed");
+    let processor = Processor::new(process_config);
+    let out_source = processor
+        .process_sync(process_input)
+        .expect("Should succeed");
     let filenames: Vec<_> = out_source
         .external_items
         .iter()
@@ -125,7 +131,7 @@ fn test_flattenfiles_skips_dotgit_and_target_dirs() {
 #[test]
 fn test_flattenfiles_truncates_very_long_filenames() {
     use llm_bucket::contract::{ProcessConfig, ProcessInput, ProcessorKind};
-    use llm_bucket::preprocess::process;
+    use llm_bucket::preprocess::Processor;
     use std::fs::{create_dir_all, File};
     use std::io::Write;
     use tempfile::tempdir;
@@ -156,7 +162,10 @@ fn test_flattenfiles_truncates_very_long_filenames() {
         kind: ProcessorKind::FlattenFiles,
     };
 
-    let out_source = process(&process_config, process_input).expect("Should succeed");
+    let processor = Processor::new(process_config);
+    let out_source = processor
+        .process_sync(process_input)
+        .expect("Should succeed");
     let filenames: Vec<_> = out_source
         .external_items
         .iter()

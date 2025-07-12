@@ -7,39 +7,45 @@ use tempfile;
 use tracing::{debug, error, info};
 
 /// Main processor struct for CLI usage: implements Preprocessor.
-pub struct Processor;
+pub struct Processor {
+    config: ProcessConfig,
+}
 
-#[async_trait::async_trait]
-impl crate::contract::Preprocessor for Processor {
-    async fn process(
-        &self,
-        config: &ProcessConfig,
-        input: ProcessInput,
-    ) -> Result<ExternalSourceInput, ProcessError> {
-        process(config, input)
+impl Processor {
+    pub fn new(config: ProcessConfig) -> Self {
+        Self { config }
     }
 }
 
-/// Main processor function: for the kind specified in config, process this input and return a single source+items.
-pub fn process(
-    config: &ProcessConfig,
-    input: ProcessInput,
-) -> Result<ExternalSourceInput, ProcessError> {
-    info!(processor = ?config.kind, name = input.name, "Starting processing for source");
-    let result = match config.kind {
-        ProcessorKind::ReadmeToPDF => process_readme_to_pdf(input),
-        ProcessorKind::FlattenFiles => process_flatten_files(input),
-        // Add more processor kinds as needed
-    };
-    match &result {
-        Ok(ext) => info!(
-            items = ext.external_items.len(),
-            "Processing completed successfully"
-        ),
-        Err(e) => error!(error = ?e, "Processing failed"),
-    };
-    result
+#[async_trait::async_trait]
+impl crate::contract::Preprocessor for Processor {
+    async fn process(&self, input: ProcessInput) -> Result<ExternalSourceInput, ProcessError> {
+        self.process_sync(input)
+    }
 }
+
+impl Processor {
+    /// Synchronous process logic for unit tests and internal use.
+    pub fn process_sync(&self, input: ProcessInput) -> Result<ExternalSourceInput, ProcessError> {
+        let config = &self.config;
+        info!(processor = ?config.kind, name = input.name, "Starting processing for source");
+        let result = match config.kind {
+            ProcessorKind::ReadmeToPDF => process_readme_to_pdf(input),
+            ProcessorKind::FlattenFiles => process_flatten_files(input),
+            // Add more processor kinds as needed
+        };
+        match &result {
+            Ok(ext) => info!(
+                items = ext.external_items.len(),
+                "Processing completed successfully"
+            ),
+            Err(e) => error!(error = ?e, "Processing failed"),
+        };
+        result
+    }
+}
+
+/// (No longer needed free function for process -- use Processor::process_sync or the trait.)
 
 fn process_readme_to_pdf(input: ProcessInput) -> Result<ExternalSourceInput, ProcessError> {
     let readme_path = input.repo_path.join("README.md");
