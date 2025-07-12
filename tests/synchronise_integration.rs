@@ -58,10 +58,6 @@ async fn test_synchronise_readme_to_pdf_upload() {
     )
     .unwrap();
 
-    let process = ProcessConfig {
-        kind: ProcessorKind::ReadmeToPDF,
-    };
-
     // MockUploader configuration
     let mut uploader = MockUploader::new();
     uploader.expect_list_sources().return_once(|| Ok(vec![]));
@@ -358,9 +354,7 @@ async fn test_synchronise_removes_existing_sources_before_upload() {
             reference: None,
         })],
     };
-    let process = ProcessConfig {
-        kind: ProcessorKind::ReadmeToPDF,
-    };
+
     let mut downloader = MockDownloader::new();
     let git_dir = output_dir.join("git_git@github.com_kasbuunk_llm-bucket.git_main");
     let downloaded_manifest = DownloadedManifest {
@@ -430,10 +424,6 @@ async fn test_synchronise_multiple_sources_reports_each_uploaded() {
         base_url: "https://dummy.atlassian.net/wiki".to_string(),
         space_key: "DUMMY".to_string(),
     });
-
-    let process = ProcessConfig {
-        kind: ProcessorKind::FlattenFiles,
-    };
 
     let mut uploader = MockUploader::new();
     uploader.expect_list_sources().return_once(|| Ok(vec![]));
@@ -566,10 +556,6 @@ async fn test_synchronise_flattenfiles_uploads_codebase_files() {
     std::fs::create_dir_all(&git_dir).unwrap();
     std::fs::write(git_dir.join("main.rs"), "// main rust file").unwrap();
     std::fs::write(git_dir.join("README.md"), "# README for flattenfiles").unwrap();
-
-    let process = ProcessConfig {
-        kind: ProcessorKind::FlattenFiles,
-    };
 
     let mut uploader = MockUploader::new();
     uploader.expect_list_sources().return_once(|| Ok(vec![]));
