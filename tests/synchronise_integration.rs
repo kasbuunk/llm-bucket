@@ -17,7 +17,6 @@ use std::path::Path;
 use tempfile::tempdir;
 
 use llm_bucket::contract::Downloader;
-use llm_bucket::contract::{ProcessConfig, ProcessorKind};
 
 use llm_bucket::download::{ConfluenceSource, DownloadConfig, GitSource, SourceAction};
 use llm_bucket::synchronise::{empty_bucket, synchronise};
@@ -205,10 +204,6 @@ async fn test_synchronise_confluence_to_pdf_upload() {
         "# Confluence Export\nSome content here.",
     )
     .unwrap();
-
-    let process = ProcessConfig {
-        kind: ProcessorKind::FlattenFiles,
-    };
 
     let mut uploader = MockUploader::new();
     uploader.expect_list_sources().return_once(|| Ok(vec![]));
