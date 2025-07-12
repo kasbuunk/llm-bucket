@@ -1,6 +1,6 @@
 [package]
 name = "llm-bucket"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Open source core logic and pipelines for synchronising a bucket with content for LLMs to consume with RAG."
 license = "MIT"
