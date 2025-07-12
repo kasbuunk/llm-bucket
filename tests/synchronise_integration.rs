@@ -110,11 +110,8 @@ async fn test_synchronise_readme_to_pdf_upload() {
         .download_all()
         .await
         .expect("Download should succeed");
-    let res = synchronise(&mock_preprocessor, &process, &uploader, &manifest.sources).await;
-    assert!(
-        res.is_ok(),
-        "Synchronise should succeed in ReadmeToPDF mode"
-    );
+    let res = synchronise(&mock_preprocessor, &uploader, &manifest.sources).await;
+    assert!(res.is_ok(), "Synchronise should succeed: {res:?}");
     let report = res.expect("Synchronise should succeed and return a report");
 
     assert!(
@@ -262,10 +259,10 @@ async fn test_synchronise_confluence_to_pdf_upload() {
         .download_all()
         .await
         .expect("Download should succeed");
-    let res = synchronise(&mock_preprocessor, &process, &uploader, &manifest.sources).await;
+    let res = synchronise(&mock_preprocessor, &uploader, &manifest.sources).await;
     assert!(
         res.is_ok(),
-        "Synchronise should succeed for Confluence source in ReadmeToPDF mode"
+        "Synchronise should succeed in ConfluenceToPDF mode"
     );
     let report = res.expect("Synchronise should return a report");
 
@@ -400,7 +397,7 @@ async fn test_synchronise_removes_existing_sources_before_upload() {
         .download_all()
         .await
         .expect("Download should succeed");
-    let report = synchronise(&mock_preprocessor, &process, &uploader, &manifest.sources)
+    let report = synchronise(&mock_preprocessor, &uploader, &manifest.sources)
         .await
         .expect("Synchronise should succeed");
 
@@ -524,10 +521,10 @@ async fn test_synchronise_multiple_sources_reports_each_uploaded() {
         .download_all()
         .await
         .expect("Download should succeed");
-    let result = synchronise(&mock_preprocessor, &process, &uploader, &manifest.sources).await;
+    let result = synchronise(&mock_preprocessor, &uploader, &manifest.sources).await;
     assert!(
         result.is_ok(),
-        "Synchronise should succeed for mixed sources"
+        "Synchronise should succeed for multiple sources"
     );
     let report = result.expect("Synchronise should return a report");
 
@@ -625,11 +622,8 @@ async fn test_synchronise_flattenfiles_uploads_codebase_files() {
         .download_all()
         .await
         .expect("Download should succeed");
-    let res = synchronise(&mock_preprocessor, &process, &uploader, &manifest.sources).await;
-    assert!(
-        res.is_ok(),
-        "Synchronise with FlattenFiles should succeed in end-to-end integration"
-    );
+    let res = synchronise(&mock_preprocessor, &uploader, &manifest.sources).await;
+    assert!(res.is_ok(), "Synchronise should succeed for flattenfiles");
     let report = res.expect("Synchronise should succeed and return a report");
 
     assert!(
