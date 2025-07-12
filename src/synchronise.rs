@@ -70,7 +70,7 @@ pub struct ExternalItemReport {
 /// The manifest typically comes from Downloader::download_all().
 pub async fn synchronise<P, U>(
     preprocessor: &P,
-    process_config: &ProcessConfig,
+
     uploader: &U,
     downloaded_sources: &[crate::contract::DownloadedSource],
 ) -> Result<SynchroniseReport, String>
